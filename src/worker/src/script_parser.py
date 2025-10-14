@@ -13,7 +13,7 @@ def parse_problem_script(script: str) -> Tuple[Dict[int, Dict[str, Any]], List[s
     
     for line in lines:
         cmd = line.split()
-        if not cmd:  # Skip empty lines
+        if not cmd: 
             continue
             
         if cmd[0].lower() == 'c':
@@ -34,7 +34,6 @@ def parse_problem_script(script: str) -> Tuple[Dict[int, Dict[str, Any]], List[s
                     
         elif ((cmd[0].lower() in ['t', 'tn'] and len(cmd) > 1 and cmd[1] == "sandbox.exe") 
               or cmd[0] == "TST" or cmd[0].startswith("TST(")):
-            # grupa brana jest z sedziego, tu jest ignorowana
             if test_id not in rv:
                 rv[test_id] = {}
             rv[test_id]["fastheap"] = False

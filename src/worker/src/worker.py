@@ -10,10 +10,10 @@ import docker.models.containers
 from types import FrameType
 from natsort import natsorted
 from typing import List, Optional
-from common.schemas import ProblemSpecificationSchema, SubmissionResultSchema, SubmissionWorkerSchema, TestResultSchema
+from common.schemas import ProblemSpecificationSchema, SubmissionResultSchema, TestResultSchema
 
 
-FETCH_TIMEOUT = 5  # seconds
+FETCH_TIMEOUT = (5, 15)  # seconds
 POOLING_INTERVAL = 100e-3  # seconds
 CONTAINERS_TIMEOUT = 300
 INFO_LENGTH_LIMIT = 2*5000
@@ -138,7 +138,7 @@ def process_submission() -> bool:
         return True
 
     try:
-        submission: SubmissionWorkerSchema = adapter.get_submission(submission_local_path, problem_local_path)
+        submission = adapter.get_submission(submission_local_path, problem_local_path)
     except FileNotFoundError:
         return True
     except Exception as e:

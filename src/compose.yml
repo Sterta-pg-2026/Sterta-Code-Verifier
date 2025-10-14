@@ -15,7 +15,6 @@ services:
       - JUDGE_IMAGE_NAME=${JUDGE_IMAGE_NAME}
       
       - GUI_URL=${GUI_URL}
-      - QUEUE_NAMES=${QUEUE_NAMES}
       - QUEUE_COMPILER_DICT=${QUEUE_COMPILER_DICT}
     group_add:  
       - ${DOCKER_GID}
