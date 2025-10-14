@@ -16,7 +16,6 @@ QURL = urljoin(GUI_URL, "qapi/qctrl.php")
 FSURL = urljoin(GUI_URL, "fsapi/fsctrl.php")
 RESURL = urljoin(GUI_URL, "io-result.php")
 
-SHARED_PATH = "/shared"
 QUEUE_COMPILER_DICT: Dict[str, str] = json.loads(os.environ["QUEUE_COMPILER_DICT"])
 
 
@@ -25,42 +24,42 @@ def fetch_submission(url: str, submission_directory_path: str, queue: str="stosv
         "f": "get",
         "name": queue
     }
-    
     response = requests.get(url, params=params, timeout=FETCH_TIMEOUT)
-    
-    mainfile = ""
-    if response.status_code == 200:
-        problem_id = response.headers.get('X-Param').split(";")[0] # type: ignore
-        student_id = response.headers.get('X-Param').split(";")[1] # type: ignore
-        submission_id = response.headers.get('X-Server-Id')
-        content = response.content
-
-        print(f"Submission ID: {submission_id}")
-        print(f"Student ID: {student_id}")
-        print(f"Problem ID: {problem_id}")
-        print(f"Queue: {queue}")
-        
-        src_directory_path = f'{submission_directory_path}/{submission_id}'
-        os.system(f"mkdir -p {src_directory_path}/tmp/src")
-         
-        with zipfile.ZipFile(io.BytesIO(content), 'r') as zip_ref:
-            file_list = zip_ref.infolist()
-            if file_list:
-                mainfile = file_list[0].filename
-            zip_file_path = f"{src_directory_path}/src.zip"
-            with open(zip_file_path, 'wb') as zip_file:
-                zip_file.write(content)
-
-        print(f"Mainfile: {mainfile}")
-        os.system(f"rm -rf {src_directory_path}/tmp")
-
-    elif response.status_code == 404:
+    if response.status_code == 404:
         raise FileNotFoundError("Submission not found")
-    else:
+    elif response.status_code != 200:
         raise Exception(f"The request failed. Status code: {response.status_code}")
-    if not submission_id or not problem_id:
-        raise ValueError("Invalid response from the server")
+    
+    problem_id = response.headers.get('X-Param').split(";")[0] # type: ignore
+    student_id = response.headers.get('X-Param').split(";")[1] # type: ignore
+    submission_id = response.headers.get('X-Server-Id')
+    content = response.content
+    if not submission_id or not problem_id or not content:
+        raise ValueError("Missing required submission information")
+    print(f"Submission ID: {submission_id}")
+    print(f"Student ID: {student_id}")
+    print(f"Problem ID: {problem_id}")
+    print(f"Queue: {queue}")
+    ###
 
+    work_directory_path = f'/tmp/submissions/{submission_id}'
+    zip_file_path = f"{work_directory_path}/src.zip"
+    os.system(f"mkdir -p {work_directory_path}")
+    
+        
+    mainfile = ""
+    with zipfile.ZipFile(io.BytesIO(content), 'r') as zip_ref:
+        file_list = zip_ref.infolist()
+        if file_list:
+            mainfile = file_list[0].filename
+        with open(zip_file_path, 'wb') as zip_file:
+            zip_file.write(content)
+
+    print(f"Mainfile: {mainfile}")
+    with zipfile.ZipFile(zip_file_path, "r") as zf:
+        zf.extractall(submission_directory_path)
+
+    os.system(f"rm -rf {work_directory_path}")
     return submission_id, problem_id, student_id, mainfile
 
 
@@ -116,44 +115,43 @@ def read_and_parse_script(script_path: str) -> List[TestSpecificationSchema]:
 
 
 def fetch_problem(url: str, problem_directory_path: str, problem_id: str) -> Optional[ProblemSpecificationSchema]:
-    problem_directory_path = f'{problem_directory_path}/{problem_id}'
-    problem_tests_zip_path = f"{problem_directory_path}/tests.zip"
+    work_directory_path = f'/tmp/problems/{problem_id}'
+    zip_file_path = f"{work_directory_path}/tests.zip"
+    os.system(f"mkdir -p {work_directory_path}")
+    os.system(f"rm -rf {work_directory_path}/*")
+    os.system(f"mkdir -p {work_directory_path}/in")
+    os.system(f"mkdir -p {work_directory_path}/out")
+    os.system(f"mkdir -p {work_directory_path}/other")
     
-    #prepare
-    os.system(f"mkdir -p {problem_directory_path}")
-    os.system(f"rm -rf {problem_directory_path}/*")
-    os.system(f"mkdir -p {problem_directory_path}/tmp/in")
-    os.system(f"mkdir -p {problem_directory_path}/tmp/out")
-    os.system(f"mkdir -p {problem_directory_path}/tmp/other")
-    
-    file_list = list_problems_files(url, problem_id)
-    
-    with zipfile.ZipFile(problem_tests_zip_path, 'w') as tests_zip:
+    file_list = list_problems_files(url, problem_id)    
+    with zipfile.ZipFile(zip_file_path, 'w') as tests_zip:
         for line in file_list.splitlines():
             print(f"\tfetching {line}...")
             file_name = line.split(':')[0]
             if file_name.endswith(".in"):
-                get_file(url, f"{problem_directory_path}/tmp/in/{file_name}", file_name, problem_id)
-                tests_zip.write(f"{problem_directory_path}/tmp/in/{file_name}", file_name)
+                get_file(url, f"{work_directory_path}/in/{file_name}", file_name, problem_id)
+                tests_zip.write(f"{work_directory_path}/in/{file_name}", file_name)
             elif file_name.endswith(".out"):
-                get_file(url, f"{problem_directory_path}/tmp/out/{file_name}", file_name, problem_id)
-                tests_zip.write(f"{problem_directory_path}/tmp/out/{file_name}", file_name)
+                get_file(url, f"{work_directory_path}/out/{file_name}", file_name, problem_id)
+                tests_zip.write(f"{work_directory_path}/out/{file_name}", file_name)
             elif file_name == "script.txt":
-                get_file(url, f"{problem_directory_path}/tmp/other/{file_name}", file_name, problem_id)
+                get_file(url, f"{work_directory_path}/other/{file_name}", file_name, problem_id)
     
-
     # parsing the script
     problem_specification = None
     try: 
-        tests = read_and_parse_script(f"{problem_directory_path}/tmp/other/script.txt")
+        tests = read_and_parse_script(f"{work_directory_path}/other/script.txt")
         problem_specification = ProblemSpecificationSchema(
             id=problem_id,
             tests=tests
         )
     except Exception as e:
         print(f"An error occurred while parsing the script: {e}")
-    
-    os.system(f"rm -rf {problem_directory_path}/tmp")
+
+    with zipfile.ZipFile(zip_file_path, "r") as zf:
+        zf.extractall(problem_directory_path)
+   
+    os.system(f"rm -rf {work_directory_path}")
     return problem_specification
 
 
@@ -181,13 +179,12 @@ def report_result(submission_id: str, result: SubmissionResultSchema) -> None:
     print(f"Reported result for submission {submission_id} with score {score}")     
 
 
-def get_submission() -> SubmissionWorkerSchema:
+def get_submission(submission_path: str, problem_path: str) -> SubmissionWorkerSchema:
     for queue_name in QUEUE_COMPILER_DICT.keys():
 
         # fetching the submission
         try:
-            destination_path = os.path.join(SHARED_PATH, "submissions")
-            submission_id, problem_id, author, mainfile = fetch_submission(QURL, destination_path, queue_name)
+            submission_id, problem_id, author, mainfile = fetch_submission(QURL, submission_path, queue_name)
         except FileNotFoundError:
             continue
         except Exception as e:
@@ -197,7 +194,7 @@ def get_submission() -> SubmissionWorkerSchema:
         # fetching the problem tests
         problem_specification: Optional[ProblemSpecificationSchema] = None
         try:
-            problem_specification = fetch_problem(FSURL, f"{SHARED_PATH}/problems", problem_id)
+            problem_specification = fetch_problem(FSURL, problem_path, problem_id)
         except Exception as e:
             print(f"An error occurred while fetching the problem: {e}")
             continue

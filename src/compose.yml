@@ -5,12 +5,12 @@ services:
     build:
       dockerfile: worker/dockerfile
     volumes:
-      - ${STOS_FILES}/shared:/shared:rw
-      - ${STOS_FILES}/workers:/workers:rw
+      # - ${STOS_FILES}/shared:/shared:rw
+      - ${STOS_FILES}:/workers:rw
       - ${DOCKER_SOCK}:/var/run/docker.sock:rw
     environment:
       - WORKERS_DATA_LOCAL_PATH=/workers
-      - WORKERS_DATA_HOST_PATH=${STOS_FILES}/workers
+      - WORKERS_DATA_HOST_PATH=${STOS_FILES}
       - EXEC_IMAGE_NAME=${EXEC_IMAGE_NAME}
       - JUDGE_IMAGE_NAME=${JUDGE_IMAGE_NAME}
       
@@ -29,4 +29,4 @@ services:
     build:
       dockerfile: gui_mock/dockerfile
     ports:
-      - "8081:80"
+      - "8080:80"

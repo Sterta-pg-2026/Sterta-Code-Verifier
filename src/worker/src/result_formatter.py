@@ -79,7 +79,7 @@ f"""
     return info_content
 
 def get_debug_formatted(result: SubmissionResultSchema) -> str:
-    debug_content = f"""Compiling...Running...OK"""
+    debug_content = "ok"#result.model_dump_json()
     return debug_content
 
     

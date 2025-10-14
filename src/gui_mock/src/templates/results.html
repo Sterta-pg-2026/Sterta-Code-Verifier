@@ -1,0 +1,130 @@
+<!-- ...existing code... -->
+<style>
+body { font-family: sans-serif; margin: 2vh; }
+h1 { margin-top: 0; }
+.groups { display: flex; flex-direction: column; gap: 5px; justify-content: flex-start; }
+.group { padding: 2px 0; }
+.group h5 { margin: 0 0}
+.file-item {
+    position: relative;
+    cursor: pointer;
+    padding: 2px 5px;
+    background: #e5e5e5;
+    border: 1px solid #c5c5c5;
+    border-radius: 6px;
+    font-size: .75rem;
+    line-height: 1.1;
+    font-family: monospace;
+    transition: background .15s, transform .1s, box-shadow .15s;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-bottom: 5px;
+}
+.file-item:hover { background:#d9d9d9; }
+.file-item:active { transform: scale(.97); }
+.file-item.active {
+    background: #1976d2;
+    color: #fff;
+    border-color: #145fa9;
+    box-shadow: 0 0 0 2px #1976d233;
+}
+#preview {
+    color: #1e1e1e;
+    background-color: #eaeaea;
+    padding: 1rem;
+    border-radius: 8px;
+    min-height: 300px;
+    overflow: auto;
+    font-family: monospace;
+    font-size: 0.85rem;
+
+    border: 1px solid #ccc; border-radius: 8px; padding: .8rem 1rem; background:#fafafa;
+}
+.meta-bar { display:flex; gap:.7rem; align-items:center; font-size:.7rem; opacity:.7; margin-bottom:.4rem; font-family:monospace; }
+.reload-btn {
+    cursor:pointer;
+    border:1px solid #bbb;
+    background:#f2f2f2;
+    padding:.35rem .7rem;
+    border-radius:5px;
+    font-size:.7rem;
+    transition:background .15s;
+}
+.reload-btn:hover { background:#e5e5e5; }
+</style>
+<!-- ...existing code... -->
+<body>
+    
+<header style="height: 100px;">
+    <h1>Received files</h1>
+    <div class="meta-bar">
+        <button class="reload-btn" onclick="reloadPage()">Refresh</button>
+        <span id="last-refresh"></span>
+        <span id="current-reported"></span>
+    </div>
+</header>
+
+<div style="display: flex; align-items: start; justify-content: space-between; gap: 20px; height: calc(96% - 100px); overflow: hidden;">
+        <div id="groups" class="groups" style="max-height: 100%;">
+            <div style="border: 1px solid #ccc; border-radius: 8px; padding: .8rem 1rem; background:#fafafa; max-height: 100%; overflow-y: auto;">
+
+                {% for sid, files in grouped.items() %}
+                <div class="group" data-sid="{{ sid }}">
+                    <h5>Submission: {{ sid }}</h5>
+                    <div class="files">
+                        {% for f in files %}
+                        <div class="file-item" data-fname="{{ f }}" title="{{ f }}">{{ f }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            {% if not grouped %}
+            <p>No files.</p>
+            {% endif %}
+        </div>
+        
+        <div style="flex: 1; max-height: 100%; overflow-x: auto;">
+            <div id="preview" style="height: 100%; box-sizing: border-box; overflow: auto;">Select a file.</div>
+        </div>
+</div>
+
+<script>
+function ts(){
+    const d = new Date();
+    return d.toLocaleTimeString();
+}
+function markActive(el){
+    document.querySelectorAll('.file-item.active').forEach(n=>n.classList.remove('active'));
+    if(el) el.classList.add('active');
+}
+async function loadFile(name, el){
+    const box = document.getElementById('preview');
+    if(!name){ box.textContent='No selection.'; return; }
+    box.textContent='Loading...';
+    markActive(el);
+    try{
+        const r = await fetch(`/results/file/${encodeURIComponent(name)}`);
+        if(!r.ok){ box.textContent='Error: ' + r.status; return; }
+        const text = await r.text();
+        box.innerHTML = text;
+    }catch(e){
+        box.textContent='Network error';
+    }
+}
+document.getElementById('groups').addEventListener('click', e=>{
+    const item = e.target.closest('.file-item');
+    if(!item) return;
+    loadFile(item.dataset.fname, item);
+});
+function reloadPage(){
+    location.reload();
+}
+document.getElementById('last-refresh').textContent = 'Loaded: ' + ts();
+const submissionsCount = {{ grouped|length }};
+document.getElementById('current-reported').textContent = 'Reported: ' + submissionsCount;
+</script>
+</body>

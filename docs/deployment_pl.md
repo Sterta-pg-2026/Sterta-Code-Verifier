@@ -94,10 +94,8 @@ STOS_GID=1000 #getent group stos | cut -d: -f3
 MASTER_API_KEY=STOS_API_KEY # only for development; production setup assumes endpoints are not exposed publicly
 
 QUEUE_NAMES=stos2025,stos2025-python # names of the queues from STOS GUI
-QUEUE_LANG_DICT={"stos2025": "c++", "stos2025-python": "python"} # internal names of code processing pipelines
-
+QUEUE_COMPILER_DICT={"stos2025": "d4m14n/stos:gpp_comp-latest", "stos2025-python": "d4m14n/stos:python3_comp-latest"}
 #names of docker images from dockerhub
 EXEC_IMAGE_NAME=d4m14n/stos:exec-latest
 JUDGE_IMAGE_NAME=d4m14n/stos:judge-latest
-LANG_COMPILER_DICT={"c++": "d4m14n/stos:gpp_comp-latest", "python": "d4m14n/stos:python3_comp-latest"}
 ```
