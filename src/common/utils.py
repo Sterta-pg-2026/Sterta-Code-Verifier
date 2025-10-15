@@ -14,7 +14,7 @@ def size_to_string(value: float) -> str:
     return f"{value:.2f} {units[index]}"
 
 
-def is_valid_destination_path(destination_file_path: str) -> bool:
+def is_valid_destination_file_path(destination_file_path: str) -> bool:
     if not destination_file_path or destination_file_path.isspace():
         return False
 

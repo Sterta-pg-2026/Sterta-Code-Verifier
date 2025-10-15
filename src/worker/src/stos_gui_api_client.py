@@ -1,7 +1,7 @@
 import requests
 from urllib.parse import urljoin
 from typing import Any, Dict, List, Optional
-from common.utils import is_valid_destination_path
+from common.utils import is_valid_destination_file_path
 from common.schemas import StosGuiResultSchema, SubmissionGuiSchema, Timeout
 
 
@@ -61,7 +61,7 @@ def get_file(file_name: str, problem_id: str, destination_file_path: str, gui_ur
     }
 
     # validate destination path
-    if not is_valid_destination_path(destination_file_path):
+    if not is_valid_destination_file_path(destination_file_path):
         raise ValueError(f"Invalid destination path: {destination_file_path}")
 
     # sending GET request to the fsapi endpoint
@@ -85,7 +85,7 @@ def get_submission(queue_name: str, destination_file_path: str, gui_url: str, ti
     }
 
     # validate destination path
-    if not is_valid_destination_path(destination_file_path):
+    if not is_valid_destination_file_path(destination_file_path):
         raise ValueError(f"Invalid destination path: {destination_file_path}")
 
 

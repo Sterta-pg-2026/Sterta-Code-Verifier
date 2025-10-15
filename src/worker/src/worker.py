@@ -17,6 +17,7 @@ FETCH_TIMEOUT = (5, 15)  # seconds
 POOLING_INTERVAL = 100e-3  # seconds
 CONTAINERS_TIMEOUT = 300
 INFO_LENGTH_LIMIT = 2*5000
+CONTAINERS_FILE_SIZE_LIMIT = "5G"
 CONTAINERS_MEMORY_LIMIT = "512m"
 HOSTNAME = os.environ['HOSTNAME']
 NAME: str =  docker.from_env().containers.get(HOSTNAME).name or HOSTNAME
@@ -37,22 +38,20 @@ def main() -> None:
     signal.signal(signal.SIGINT, handle_signal)
     signal.signal(signal.SIGTERM, handle_signal)
     while True:
-        should_wait = process_submission()
+        should_wait = execute_submission_pipeline()
         if should_wait:
             time.sleep(POOLING_INTERVAL)
 
-# todo: change this fuction
 def get_debug(path: str) -> Optional[str]:
     comp_file_path = os.path.join(path, "comp.txt")
     try:
         with open(comp_file_path, "r") as comp_file:
             content = comp_file.read(INFO_LENGTH_LIMIT)
             if comp_file.read(1):
-                content += "\033[0m\033[0m..."
+                content += "\033[0m\033[0m..." #todo: possible ANSI escape sequences cut off
     except Exception:
         return None
     return content if content else None
-
 
 def get_results(path: str) -> SubmissionResultSchema:
     submission_result = SubmissionResultSchema()
@@ -87,7 +86,6 @@ def get_results(path: str) -> SubmissionResultSchema:
 
     submission_result.points = points
     return submission_result
-
 
 def report_result(submission_id: str, result: Optional[SubmissionResultSchema]) -> None:
     print(f"Reporting result for submission {submission_id}")
@@ -135,7 +133,7 @@ def save_problem_specification(problem_specification: Optional[ProblemSpecificat
         print(f"Problem specification saved to {problem_specification_local_path}")
 
 
-def process_submission() -> bool:
+def execute_submission_pipeline() -> bool:
     problem_local_path: str = os.path.join(DATA_LOCAL_PATH, "tests")
     problem_host_path: str = os.path.join(DATA_HOST_PATH, "tests")
     submission_local_path: str = os.path.join(DATA_LOCAL_PATH, "src")
@@ -143,20 +141,20 @@ def process_submission() -> bool:
     lib_local_path: str = os.path.join(DATA_LOCAL_PATH, "lib")
     # lib_host_path: str = os.path.join(DATA_HOST_PATH, "lib") # todo: use lib path
 
+
+    # * ----------------------------------
+    # * Initialize worker files
+    # * ----------------------------------
     try:
         init_worker_files()
     except Exception as e:
         print(f"Error while initializing worker files: {e}")
         return True
 
-    # try:
-    #     submission = adapter.get_submission(submission_local_path, problem_local_path)
-    # except FileNotFoundError:
-    #     return True
-    # except Exception as e:
-    #     print(f"Error while fetching submission: {e}")
-    #     return True
-    
+
+    # * ----------------------------------
+    # * Fetch submission
+    # * ----------------------------------
     try:
         submission = adapter.fetch_submission(submission_local_path)
         if submission is None or submission.problem_specification.id is None:
@@ -165,7 +163,10 @@ def process_submission() -> bool:
         print(f"Error while fetching submission: {e}")
         return True
 
-    
+
+    # * ----------------------------------
+    # * Fetch problem
+    # * ----------------------------------
     try:
         problem = adapter.fetch_problem(submission.problem_specification.id, problem_local_path, lib_local_path)
         submission.problem_specification = problem
@@ -174,12 +175,18 @@ def process_submission() -> bool:
         return True
     
 
+    # * ----------------------------------
+    # * Save problem specification
+    # * ----------------------------------
     try:
        save_problem_specification(submission.problem_specification)
     except Exception as e:
         print(f"Error while saving problem specification: {e}")
 
-    
+
+    # * ----------------------------------
+    # * Run subcontainers
+    # * ----------------------------------
     print(f"Running submission {submission.id}")
     result: Optional[SubmissionResultSchema] = run_containers(
         submission_host_path,
@@ -187,8 +194,17 @@ def process_submission() -> bool:
         submission.comp_image,
         submission.mainfile,
     )
+
+
+    # * ----------------------------------
+    # * Report result
+    # * ----------------------------------
     report_result(submission.id, result)
 
+
+    # * ----------------------------------
+    # * Archive worker files if debug mode is enabled
+    # * ----------------------------------
     if IS_DEBUG_MODE_ENABLED:
         try:
             archive_worker_files()
@@ -221,6 +237,7 @@ def run_containers(
             mem_limit=CONTAINERS_MEMORY_LIMIT,
             network_disabled=True,
             security_opt=["no-new-privileges"],
+            storage_opt={"size": CONTAINERS_FILE_SIZE_LIMIT},
             environment={
                 "SRC": "/data/src",
                 "OUT": "/data/out",
@@ -244,6 +261,7 @@ def run_containers(
             remove=True,
             mem_limit=CONTAINERS_MEMORY_LIMIT,
             network_disabled=True,
+            storage_opt={"size": CONTAINERS_FILE_SIZE_LIMIT},
             security_opt=["no-new-privileges"],
             environment={
                 "LOGS": "off",
@@ -272,6 +290,7 @@ def run_containers(
             remove=True,
             mem_limit=CONTAINERS_MEMORY_LIMIT,
             network_disabled=True,
+            storage_opt={"size": CONTAINERS_FILE_SIZE_LIMIT},
             security_opt=["no-new-privileges"],
             environment={
                 "LOGS": "off",
