@@ -43,7 +43,7 @@ def get_problems_files_list(problem_id: str, gui_url: str, timeout: Tuple[float,
         return problem_file_list
 
 
-def get_file(file_name: str, problem_id: str, output_storage_path: str, gui_url: str, timeout: Tuple[float, float]) -> None:
+def get_file(file_name: str, problem_id: str, destination_file_path: str, gui_url: str, timeout: Tuple[float, float]) -> None:
     fsapi_url: str = urljoin(gui_url, "fsapi/fsctrl.php")
     params: Dict[str, Any] = {
         "f": "get",
@@ -54,7 +54,7 @@ def get_file(file_name: str, problem_id: str, output_storage_path: str, gui_url:
 
     with requests.get(fsapi_url, params=params, timeout=timeout, stream=True) as response:
         response.raise_for_status()
-        with open(output_storage_path, "wb") as file:
+        with open(destination_file_path, "wb") as file:
             downloaded_size = 0
             for chunk in response.iter_content(chunk_size=8192):
                 if chunk:
@@ -64,7 +64,7 @@ def get_file(file_name: str, problem_id: str, output_storage_path: str, gui_url:
                     file.write(chunk)
 
 
-def get_submission(queue_name: str, output_storage_path: str, gui_url: str, timeout: Tuple[float, float]) -> Optional[SubmissionGuiSchema]:
+def get_submission(queue_name: str, destination_file_path: str, gui_url: str, timeout: Tuple[float, float]) -> Optional[SubmissionGuiSchema]:
     qapi_url: str = urljoin(gui_url, "qapi/qctrl.php")
     params: Dict[str, str] = {
         "f": "get",
@@ -93,7 +93,7 @@ def get_submission(queue_name: str, output_storage_path: str, gui_url: str, time
 
         # save response content to output_storage_path
         downloaded_size = 0
-        with open(output_storage_path, 'wb') as file:
+        with open(destination_file_path, 'wb') as file:
             for chunk in response.iter_content(chunk_size=8192):
                 if chunk:
                     downloaded_size += len(chunk)

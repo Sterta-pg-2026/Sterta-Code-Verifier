@@ -145,14 +145,31 @@ def process_submission() -> bool:
         print(f"Error while initializing worker files: {e}")
         return True
 
+    # try:
+    #     submission = adapter.get_submission(submission_local_path, problem_local_path)
+    # except FileNotFoundError:
+    #     return True
+    # except Exception as e:
+    #     print(f"Error while fetching submission: {e}")
+    #     return True
+    
     try:
-        submission = adapter.get_submission(submission_local_path, problem_local_path)
-    except FileNotFoundError:
-        return True
+        submission = adapter.fetch_submission(submission_local_path)
     except Exception as e:
         print(f"Error while fetching submission: {e}")
         return True
 
+    if submission is None or submission.problem_specification.id is None:
+        return True
+    
+    try:
+        problem = adapter.fetch_problem(problem_local_path, submission.problem_specification.id)
+        submission.problem_specification = problem
+    except Exception as e:
+        print(f"Error while fetching problem: {e}")
+        return True
+    
+    
     try:
        save_problem_specification(submission.problem_specification)
     except Exception as e:

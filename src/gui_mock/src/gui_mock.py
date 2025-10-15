@@ -6,8 +6,8 @@ import os
 
 
 # SKIP = 192
-SKIP = 1
-LIMIT = 300
+SKIP = 192
+LIMIT = 1
 SUBMISSIONS = "test_files/submissions"
 TESTS = "test_files/tests"
 QUEUE = "stos2025"

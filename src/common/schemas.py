@@ -71,7 +71,7 @@ class SubmissionSchema(BaseModel):
     comp_image: str
     mainfile: Optional[str] = None
     submitted_by: Optional[str] = None
-    problem_specification: Optional[ProblemSpecificationSchema] = None
+    problem_specification: ProblemSpecificationSchema
     
 
 class SubmissionGuiSchema(BaseModel):
