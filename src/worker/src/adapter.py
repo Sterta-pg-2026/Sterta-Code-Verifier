@@ -3,8 +3,8 @@ import json
 import zipfile
 import script_parser as script_parser 
 import result_formatter as result_formatter
-from typing import Dict, List, Optional
-from common.schemas import ProblemSpecificationSchema, SubmissionSchema, SubmissionResultSchema, TestSpecificationSchema
+from typing import Dict, Optional
+from common.schemas import ProblemSpecificationSchema, SubmissionSchema, SubmissionResultSchema
 import stos_gui_api_client as gui_client
 # get_submission, list_problems_files, get_file
 
@@ -12,24 +12,6 @@ import stos_gui_api_client as gui_client
 FETCH_TIMEOUT = (5, 15)
 GUI_URL = os.environ["GUI_URL"]
 QUEUE_COMPILER_DICT: Dict[str, str] = json.loads(os.environ["QUEUE_COMPILER_DICT"])
-
-
-def read_and_parse_script(script_path: str) -> List[TestSpecificationSchema]:
-    script_content = ""
-    with open(script_path, "r") as script_file:
-        script_content = script_file.read()
-    if not script_content:
-        raise ValueError("Script file is empty")
-
-    result, _ = script_parser.parse_problem_script(script_content) # type: ignore
-    tests: List[TestSpecificationSchema] = []
-    for _, value in result.items():
-        test = TestSpecificationSchema(
-            test_name=str(value.get("input")).replace(".in", ""),
-            time_limit=value.get("time") # type: ignore
-        )
-        tests.append(test)
-    return tests
 
 
 def fetch_problem(problem_directory_path: str, problem_id: str) -> Optional[ProblemSpecificationSchema]:
@@ -41,10 +23,10 @@ def fetch_problem(problem_directory_path: str, problem_id: str) -> Optional[Prob
     os.system(f"mkdir -p {work_directory_path}/out")
     os.system(f"mkdir -p {work_directory_path}/other")
     
-    file_list = gui_client.list_problems_files(problem_id, GUI_URL, FETCH_TIMEOUT)
+    file_list = gui_client.get_problems_files_list(problem_id, GUI_URL, FETCH_TIMEOUT)
     with zipfile.ZipFile(zip_file_path, 'w') as tests_zip:
         for file_name in file_list:
-            print(f"\tfetching {file_name}...")
+            # print(f"\tfetching {file_name}...")
             if file_name.endswith(".in"):
                 gui_client.get_file(file_name, problem_id, f"{work_directory_path}/in/{file_name}", GUI_URL, FETCH_TIMEOUT)
                 tests_zip.write(f"{work_directory_path}/in/{file_name}", file_name)
@@ -57,11 +39,9 @@ def fetch_problem(problem_directory_path: str, problem_id: str) -> Optional[Prob
     # parsing the script
     problem_specification = None
     try: 
-        tests = read_and_parse_script(f"{work_directory_path}/other/script.txt")
-        problem_specification = ProblemSpecificationSchema(
-            id=problem_id,
-            tests=tests
-        )
+        with open(f"{work_directory_path}/other/script.txt", "r") as script_file:
+            problem_specification = script_parser.parse_script(script_file.read(), problem_id)
+        print(problem_specification)
     except Exception as e:
         print(f"An error occurred while parsing the script: {e}")
 
@@ -81,7 +61,7 @@ def report_result(submission_id: str, result: SubmissionResultSchema) -> None:
     info_content: str = result_formatter.get_info_formatted(result)
     debug_content: str = result_formatter.get_debug_formatted(result)
     
-    msg = gui_client.report_result(submission_id, (result_content, info_content, debug_content), GUI_URL, FETCH_TIMEOUT)
+    msg = gui_client.post_result(submission_id, (result_content, info_content, debug_content), GUI_URL, FETCH_TIMEOUT)
     print("Response:", msg)
     print(f"Reported result for submission {submission_id} with score {score}")     
 

@@ -116,6 +116,14 @@ def init_worker_files() -> None:
     os.makedirs(os.path.join(DATA_LOCAL_PATH, "src"))
     os.makedirs(os.path.join(DATA_LOCAL_PATH, "tests"))
 
+def backup_worker_files() -> None:
+    os.umask(0)
+    history_local_path = f"{DATA_LOCAL_PATH}_debug"
+    if os.path.exists(history_local_path):
+        shutil.rmtree(history_local_path)
+
+    backup_path = os.path.join(history_local_path)
+    shutil.copytree(DATA_LOCAL_PATH, backup_path)
 
 def save_problem_specification(problem_specification: Optional[ProblemSpecificationSchema]) -> None:
      if problem_specification:
@@ -149,6 +157,7 @@ def process_submission() -> bool:
        save_problem_specification(submission.problem_specification)
     except Exception as e:
         print(f"Error while saving problem specification: {e}")
+
     
     print(f"Running submission {submission.id}")
     result: Optional[SubmissionResultSchema] = run_containers(
@@ -158,6 +167,13 @@ def process_submission() -> bool:
         submission.mainfile,
     )
     report_result(submission.id, result)
+    
+    try:
+        backup_worker_files()
+    except Exception as e:
+        print(f"Error while backing up worker files: {e}")
+        return True
+    
     return False
 
 

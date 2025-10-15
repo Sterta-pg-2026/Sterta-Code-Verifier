@@ -19,9 +19,9 @@ class SubmissionResultSchema(BaseModel):
     def __str__(self) -> str:
         ret = ""
         if len(self.test_results) > 0:
-            ret += "+------+------+-----+\n"
-            ret += "| name | time | ret |\n"
-            ret += "+------+------+-----+\n"
+            ret += "+------+------+--------+-----+\n"
+            ret += "| name | time | memory | ret |\n"
+            ret += "+------+------+--------+-----+\n"
             for result in self.test_results:
                 color = 131
                 if result.grade:
@@ -29,10 +29,10 @@ class SubmissionResultSchema(BaseModel):
                 if result.ret_code != 0:
                     color = 173
                 ret += f"|\033[48;5;{color}m\033[38;5;232m {result.test_name:>4} | "
-                ret += f"{result.time:.2f} | {result.ret_code:>3} \033[0m| {result.info}\n"
-            ret += "+------+------+-----+\n"
-            ret += "| " + f"points: {self.points}".center(17) + " |\n"
-            ret += "+------+------+-----+"
+                ret += f"{result.time:.2f} |{result.memory:>7.0f} | {result.ret_code:>3} \033[0m| {result.info}\n"
+            ret += "+------+------+--------+-----+\n"
+            ret += "| " + f"points: {self.points}".center(26) + " |\n"
+            ret += "+------+------+--------+-----+"
         else:
             ret += "+-------------------+\n"
             ret += "| compilation error |\n"
@@ -52,6 +52,18 @@ class TestSpecificationSchema(BaseModel):
 class ProblemSpecificationSchema(BaseModel):
     id: Optional[str]
     tests: List[TestSpecificationSchema] = []
+
+    def __str__(self) -> str:
+        ret = ""
+        if len(self.tests) > 0:
+            ret += "+------+------+-----------+\n"
+            ret += "| name | time | memory    |\n"
+            ret += "+------+------+-----------+\n"
+            for test in self.tests:
+                ret += f"| {test.test_name:>4} | "
+                ret += f"{test.time_limit:.2f} | {test.total_memory_limit:>9} |\n"
+            ret += "+------+------+-----------+"
+        return ret
 
 
 class SubmissionSchema(BaseModel):

@@ -1,8 +1,8 @@
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from common.schemas import ProblemSpecificationSchema, TestSpecificationSchema
 
-def parse_problem_script(script: str) -> Tuple[Dict[int, Dict[str, Any]], List[str]]:
+def extract_raw_problem_script(script: str) -> Tuple[Dict[int, Dict[str, Any]], List[str]]:
     lines = script.split("\n")
     add_files: List[str] = []
     test_id = 0
@@ -145,26 +145,33 @@ def parse_problem_script(script: str) -> Tuple[Dict[int, Dict[str, Any]], List[s
                 
     return rv, add_files
 
-def parse_script(script: str, problem_id: str) -> ProblemSpecificationSchema:
-    # PYTHONPATH=.. python script_parser.py    
- 
-    result, _ = parse_problem_script(script) # type: ignore
-    tests: List[TestSpecificationSchema] = []
-    for _, value in result.items():
-        test = TestSpecificationSchema(
-            test_name=str(value.get("input")).replace(".in", ""),
-            time_limit=value.get("time") # type: ignore
-        )
-        tests.append(test)
-
-    problem_specification = ProblemSpecificationSchema(
-        id=problem_id,
-        tests=tests
-    )
+def parse_script(script: str, problem_id: str) -> Optional[ProblemSpecificationSchema]:
+    if not script:
+        print("Script is empty")
+        return None
     
-    return problem_specification
+    try:
+        result, _ = extract_raw_problem_script(script) # type: ignore
+        tests: List[TestSpecificationSchema] = []
+        for _, value in result.items():
+            test = TestSpecificationSchema(
+                test_name=str(value.get("input")).replace(".in", ""),
+                time_limit=value.get("time"),  # type: ignore
+                total_memory_limit=(value.get("mem") or 256)*1024, 
+            )
+            tests.append(test)
 
+        problem_specification = ProblemSpecificationSchema(
+            id=problem_id,
+            tests=tests
+        )
+        
+        return problem_specification
+    except Exception as e:
+        print(f"An error occurred while parsing the script: {e}")
+        return None
 
+# PYTHONPATH=.. python script_parser.py    
 if __name__ == "__main__":
     script = """
 ##STOS_AUTOMATIC_SCRIPT_1_4##
@@ -194,7 +201,8 @@ FIN jfinal.exe
 WR infoformat=html
 WR time=%TIME%
 """
-    parsed_script, additional_files = parse_problem_script(script)
+    parsed_script, additional_files = extract_raw_problem_script(script)
     parsed_script = parse_script(script, "1347")
-    print("Parsed Script:", parsed_script.model_dump_json())
-    print("Additional Files:", additional_files)
+    if parsed_script:
+        print("Parsed Script:", parsed_script.model_dump_json())
+        print("Additional Files:", additional_files)

@@ -3,11 +3,9 @@ from urllib.parse import urljoin
 from common.schemas import SubmissionGuiSchema
 from typing import Any, Dict, List, Optional, Tuple
 
+MAX_FILE_SIZE = 500 * 1024 * 1024
 
-MAX_FILE_SIZE = 50 * 1024 * 1024
-
-
-def report_result(submission_id: str, result: Tuple[str, str, str], gui_url: str, timeout: Tuple[float, float]) -> str:
+def post_result(submission_id: str, result: Tuple[str, str, str], gui_url: str, timeout: Tuple[float, float]) -> str:
     res_url: str = urljoin(gui_url, "io-result.php")
     files = {
         'result': ('result.txt', result[0], 'text/plain'),
@@ -22,7 +20,7 @@ def report_result(submission_id: str, result: Tuple[str, str, str], gui_url: str
         return response.text
 
 
-def list_problems_files(problem_id: str, gui_url: str, timeout: Tuple[float, float]) -> List[str]:
+def get_problems_files_list(problem_id: str, gui_url: str, timeout: Tuple[float, float]) -> List[str]:
     fsapi_url: str = urljoin(gui_url, "fsapi/fsctrl.php")
     params: Dict[str, Any] = {
         "f": "list",
