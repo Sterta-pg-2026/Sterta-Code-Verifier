@@ -7,3 +7,4 @@ class SubmissionStatus(Enum):
     COMPLETED = 3
     REPORTED = 4
 
+

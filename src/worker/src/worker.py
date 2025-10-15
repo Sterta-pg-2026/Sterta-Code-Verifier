@@ -24,6 +24,7 @@ NAME: str =  docker.from_env().containers.get(HOSTNAME).name or HOSTNAME
 DATA_LOCAL_PATH = os.path.join(os.environ["WORKERS_DATA_LOCAL_PATH"], NAME)
 DATA_HOST_PATH = os.path.join(os.environ["WORKERS_DATA_HOST_PATH"], NAME)
 
+IS_DEBUG_MODE_ENABLED = os.environ.get("IS_DEBUG_MODE_ENABLED", "false").lower() == "true"
 EXEC_IMAGE: str = os.environ["EXEC_IMAGE_NAME"]
 JUDGE_IMAGE: str = os.environ["JUDGE_IMAGE_NAME"]
 
@@ -100,8 +101,8 @@ def report_result(submission_id: str, result: Optional[SubmissionResultSchema]) 
     
     try:
         adapter.report_result(submission_id, result)
-    except Exception:
-        print(f"Error while reporting result")
+    except Exception as e:
+        print(f"Error while reporting result: {e}")
 
 
 def init_worker_files() -> None:
@@ -114,9 +115,10 @@ def init_worker_files() -> None:
     os.makedirs(os.path.join(DATA_LOCAL_PATH, "out"))
     os.makedirs(os.path.join(DATA_LOCAL_PATH, "conf"))
     os.makedirs(os.path.join(DATA_LOCAL_PATH, "src"))
+    os.makedirs(os.path.join(DATA_LOCAL_PATH, "lib"))
     os.makedirs(os.path.join(DATA_LOCAL_PATH, "tests"))
 
-def backup_worker_files() -> None:
+def archive_worker_files() -> None:
     os.umask(0)
     history_local_path = f"{DATA_LOCAL_PATH}_debug"
     if os.path.exists(history_local_path):
@@ -138,6 +140,8 @@ def process_submission() -> bool:
     problem_host_path: str = os.path.join(DATA_HOST_PATH, "tests")
     submission_local_path: str = os.path.join(DATA_LOCAL_PATH, "src")
     submission_host_path: str = os.path.join(DATA_HOST_PATH, "src")
+    lib_local_path: str = os.path.join(DATA_LOCAL_PATH, "lib")
+    # lib_host_path: str = os.path.join(DATA_HOST_PATH, "lib") # todo: use lib path
 
     try:
         init_worker_files()
@@ -155,21 +159,21 @@ def process_submission() -> bool:
     
     try:
         submission = adapter.fetch_submission(submission_local_path)
+        if submission is None or submission.problem_specification.id is None:
+            return True
     except Exception as e:
         print(f"Error while fetching submission: {e}")
         return True
 
-    if submission is None or submission.problem_specification.id is None:
-        return True
     
     try:
-        problem = adapter.fetch_problem(problem_local_path, submission.problem_specification.id)
+        problem = adapter.fetch_problem(submission.problem_specification.id, problem_local_path, lib_local_path)
         submission.problem_specification = problem
     except Exception as e:
         print(f"Error while fetching problem: {e}")
         return True
     
-    
+
     try:
        save_problem_specification(submission.problem_specification)
     except Exception as e:
@@ -184,12 +188,13 @@ def process_submission() -> bool:
         submission.mainfile,
     )
     report_result(submission.id, result)
-    
-    try:
-        backup_worker_files()
-    except Exception as e:
-        print(f"Error while backing up worker files: {e}")
-        return True
+
+    if IS_DEBUG_MODE_ENABLED:
+        try:
+            archive_worker_files()
+        except Exception as e:
+            print(f"Error while archiving worker files: {e}")
+            return True
     
     return False
 

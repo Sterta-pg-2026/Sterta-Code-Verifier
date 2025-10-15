@@ -1,33 +1,41 @@
 import requests
 from urllib.parse import urljoin
-from common.schemas import SubmissionGuiSchema
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
+from common.utils import is_valid_destination_path
+from common.schemas import StosGuiResultSchema, SubmissionGuiSchema, Timeout
 
-MAX_FILE_SIZE = 500 * 1024 * 1024
 
-def post_result(submission_id: str, result: Tuple[str, str, str], gui_url: str, timeout: Tuple[float, float]) -> str:
-    res_url: str = urljoin(gui_url, "io-result.php")
+FSAPI_ENDPOINT = "fsapi/fsctrl.php"
+QAPI_ENDPOINT = "qapi/qctrl.php"
+RESULT_ENDPOINT = "io-result.php"
+MAX_FILE_SIZE = 1024 * 1024 * 1024 # 1 GB
+
+def post_result(submission_id: str, result: StosGuiResultSchema, gui_url: str, timeout: Timeout) -> str:
+    res_url: str = urljoin(gui_url, RESULT_ENDPOINT)
     files = {
-        'result': ('result.txt', result[0], 'text/plain'),
-        'info': ('info.txt', result[1], 'text/plain'),
-        'debug': ('debug.txt', result[2], 'text/plain'),
+        'result': ('result.txt', result.result, 'text/plain'),
+        'info': ('info.txt', result.info, 'text/plain'),
+        'debug': ('debug.txt', result.debug, 'text/plain'),
     }
     data = {
         "id": submission_id
     }
 
+    # sending POST request to the result endpoint
     with requests.post(res_url, data=data, files=files, timeout=timeout) as response:
+        response.raise_for_status()
         return response.text
 
 
-def get_problems_files_list(problem_id: str, gui_url: str, timeout: Tuple[float, float]) -> List[str]:
-    fsapi_url: str = urljoin(gui_url, "fsapi/fsctrl.php")
+def get_problems_files_list(problem_id: str, gui_url: str, timeout: Timeout) -> List[str]:
+    fsapi_url: str = urljoin(gui_url, FSAPI_ENDPOINT)
     params: Dict[str, Any] = {
         "f": "list",
         "area": 0, # problem files area
         "pid": problem_id,
     }
     
+    # sending GET request to the fsapi endpoint
     with requests.get(fsapi_url, params=params, timeout=timeout) as response:
         response.raise_for_status()
         raw_file_list = response.text
@@ -37,14 +45,14 @@ def get_problems_files_list(problem_id: str, gui_url: str, timeout: Tuple[float,
         for line in raw_file_list.splitlines():
             if not line.strip():
                 continue
-            file_name = line.split(':')[0].strip()
+            file_name = line.split(':')[0].strip() # * possible ':' in file names 
             problem_file_list.append(file_name)
     
         return problem_file_list
 
 
-def get_file(file_name: str, problem_id: str, destination_file_path: str, gui_url: str, timeout: Tuple[float, float]) -> None:
-    fsapi_url: str = urljoin(gui_url, "fsapi/fsctrl.php")
+def get_file(file_name: str, problem_id: str, destination_file_path: str, gui_url: str, timeout: Timeout) -> None:
+    fsapi_url: str = urljoin(gui_url, FSAPI_ENDPOINT)
     params: Dict[str, Any] = {
         "f": "get",
         "area": 0,
@@ -52,6 +60,11 @@ def get_file(file_name: str, problem_id: str, destination_file_path: str, gui_ur
         "name": file_name
     }
 
+    # validate destination path
+    if not is_valid_destination_path(destination_file_path):
+        raise ValueError(f"Invalid destination path: {destination_file_path}")
+
+    # sending GET request to the fsapi endpoint
     with requests.get(fsapi_url, params=params, timeout=timeout, stream=True) as response:
         response.raise_for_status()
         with open(destination_file_path, "wb") as file:
@@ -64,13 +77,19 @@ def get_file(file_name: str, problem_id: str, destination_file_path: str, gui_ur
                     file.write(chunk)
 
 
-def get_submission(queue_name: str, destination_file_path: str, gui_url: str, timeout: Tuple[float, float]) -> Optional[SubmissionGuiSchema]:
-    qapi_url: str = urljoin(gui_url, "qapi/qctrl.php")
+def get_submission(queue_name: str, destination_file_path: str, gui_url: str, timeout: Timeout) -> Optional[SubmissionGuiSchema]:
+    qapi_url: str = urljoin(gui_url, QAPI_ENDPOINT)
     params: Dict[str, str] = {
         "f": "get",
         "name": queue_name
     }
 
+    # validate destination path
+    if not is_valid_destination_path(destination_file_path):
+        raise ValueError(f"Invalid destination path: {destination_file_path}")
+
+
+    # sending GET request to the qapi endpoint
     with requests.get(qapi_url, params=params, timeout=timeout, stream=True) as response:
         # handle HTTP errors
         if response.status_code == 404:

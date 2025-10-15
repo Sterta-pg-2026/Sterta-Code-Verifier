@@ -1,6 +1,16 @@
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, NamedTuple, Optional
 
+from common.utils import size_to_string
+
+class Timeout(NamedTuple):
+    connect: float
+    read: float
+
+class StosGuiResultSchema(NamedTuple):
+    result: str
+    info: str
+    debug: str
 
 class TestResultSchema(BaseModel):
     test_name: str = ""
@@ -19,9 +29,9 @@ class SubmissionResultSchema(BaseModel):
     def __str__(self) -> str:
         ret = ""
         if len(self.test_results) > 0:
-            ret += "+------+------+--------+-----+\n"
-            ret += "| name | time | memory | ret |\n"
-            ret += "+------+------+--------+-----+\n"
+            ret += "+------+------+------------+-----+\n"
+            ret += "| name | time |   memory   | ret |\n"
+            ret += "+------+------+------------+-----+\n"
             for result in self.test_results:
                 color = 131
                 if result.grade:
@@ -29,14 +39,14 @@ class SubmissionResultSchema(BaseModel):
                 if result.ret_code != 0:
                     color = 173
                 ret += f"|\033[48;5;{color}m\033[38;5;232m {result.test_name:>4} | "
-                ret += f"{result.time:.2f} |{result.memory:>7.0f} | {result.ret_code:>3} \033[0m| {result.info}\n"
-            ret += "+------+------+--------+-----+\n"
-            ret += "| " + f"points: {self.points}".center(26) + " |\n"
-            ret += "+------+------+--------+-----+"
+                ret += f"{result.time:.2f} | {size_to_string(result.memory):>10} | {result.ret_code:>3} \033[0m| {result.info}\n"
+            ret += "+------+------+------------+-----+\n"
+            ret += "| " + f"points: {self.points}".center(30) + " |\n"
+            ret += "+------+------+------------+-----+"
         else:
-            ret += "+-------------------+\n"
-            ret += "| compilation error |\n"
-            ret += "+-------------------+"
+            ret += "+-----------------------+\n"
+            ret += "|   compilation error   |\n"
+            ret += "+-----------------------+"
         if self.info:
             ret += "\n\033[33mDebug info\033[0m: " + self.info[:-2]
         return ret
@@ -56,13 +66,13 @@ class ProblemSpecificationSchema(BaseModel):
     def __str__(self) -> str:
         ret = ""
         if len(self.tests) > 0:
-            ret += "+------+------+-----------+\n"
-            ret += "| name | time | memory    |\n"
-            ret += "+------+------+-----------+\n"
+            ret += "+------+------+------------+\n"
+            ret += "| name | time |   memory   |\n"
+            ret += "+------+------+------------+\n"
             for test in self.tests:
                 ret += f"| {test.test_name:>4} | "
-                ret += f"{test.time_limit:.2f} | {test.total_memory_limit:>9} |\n"
-            ret += "+------+------+-----------+"
+                ret += f"{test.time_limit:.2f} | {size_to_string(test.total_memory_limit):>10} |\n"
+            ret += "+------+------+------------+"
         return ret
 
 

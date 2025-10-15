@@ -2,21 +2,27 @@ import os
 import json
 import shutil
 import zipfile
+from common.utils import is_valid_destination_directory_path
 import script_parser as script_parser 
 import result_formatter as result_formatter
 from typing import Dict, Optional
-from common.schemas import ProblemSpecificationSchema, SubmissionSchema, SubmissionResultSchema
+from common.schemas import ProblemSpecificationSchema, StosGuiResultSchema, SubmissionSchema, SubmissionResultSchema, Timeout
 import stos_gui_api_client as gui_client
 
 
-FETCH_TIMEOUT = (5, 15)
+TIMEOUT = Timeout(5, 10) # FETCH_TIMEOUT 
 GUI_URL = os.environ["GUI_URL"]
-QUEUE_COMPILER_DICT: Dict[str, str] = json.loads(os.environ["QUEUE_COMPILER_DICT"])
+QUEUE_COMPILER_DICT: Dict[str, str] = json.loads(os.environ["QUEUE_COMPILER_DICT"]) # todo validate
 
 
 def fetch_submission(destination_directory: str) -> Optional[SubmissionSchema]:
     submission_workspace = f'/tmp/submission'
     submission_temp_zip_path = os.path.join(submission_workspace, "src.zip")
+
+    # validate destination path
+    if not is_valid_destination_directory_path(destination_directory):
+        raise ValueError(f"Invalid destination path: {destination_directory}")
+
 
     for queue_name in QUEUE_COMPILER_DICT.keys():
         # initializing workspace
@@ -28,7 +34,7 @@ def fetch_submission(destination_directory: str) -> Optional[SubmissionSchema]:
         # fetching submission
         response = None
         try:
-            response = gui_client.get_submission(queue_name, submission_temp_zip_path, GUI_URL, FETCH_TIMEOUT)
+            response = gui_client.get_submission(queue_name, submission_temp_zip_path, GUI_URL, TIMEOUT)
         except Exception as e:
             print(f"An error occurred while fetching the submission from {queue_name}: {e}")
             continue
@@ -56,16 +62,16 @@ def fetch_submission(destination_directory: str) -> Optional[SubmissionSchema]:
     return None
 
 def report_result(submission_id: str, result: SubmissionResultSchema) -> None:
-    score: float = result_formatter.get_result_score(result)
-   
-    result_content: str = result_formatter.get_result_formatted(result)
-    info_content: str = result_formatter.get_info_formatted(result)
-    debug_content: str = result_formatter.get_debug_formatted(result)
+    guiResult = StosGuiResultSchema(
+        result=result_formatter.get_result_formatted(result),
+        info=result_formatter.get_info_formatted(result),
+        debug=result_formatter.get_debug_formatted(result)
+    )
     
-    msg = gui_client.post_result(submission_id, (result_content, info_content, debug_content), GUI_URL, FETCH_TIMEOUT)
-    print(f"Reported result for submission {submission_id} with score {score}, response: {msg}")     
+    msg = gui_client.post_result(submission_id, guiResult, GUI_URL, TIMEOUT)
+    print(f"Reported result for submission {submission_id} with score {result_formatter.get_result_score(result)}, response: {msg}")     
 
-def fetch_problem(destination_directory: str, problem_id: str) -> ProblemSpecificationSchema:
+def fetch_problem(problem_id: str, destination_directory: str, lib_destination_directory: Optional[str]=None) -> ProblemSpecificationSchema:
     # initializing workspace
     problem_workspace = f'/tmp/problem'
     tmp_script_path = os.path.join(problem_workspace, "script.txt")
@@ -76,22 +82,24 @@ def fetch_problem(destination_directory: str, problem_id: str) -> ProblemSpecifi
     os.makedirs(problem_workspace)
 
     # fetching problem files
-    file_list = gui_client.get_problems_files_list(problem_id, GUI_URL, FETCH_TIMEOUT)
+    file_list = gui_client.get_problems_files_list(problem_id, GUI_URL, TIMEOUT)
     for file_name in file_list:
         if file_name.endswith(".in"):
-            gui_client.get_file(file_name, problem_id, os.path.join(destination_directory, file_name), GUI_URL, FETCH_TIMEOUT)
+            gui_client.get_file(file_name, problem_id, os.path.join(destination_directory, file_name), GUI_URL, TIMEOUT)
         elif file_name.endswith(".out"):
-            gui_client.get_file(file_name, problem_id, os.path.join(destination_directory, file_name), GUI_URL, FETCH_TIMEOUT)
+            gui_client.get_file(file_name, problem_id, os.path.join(destination_directory, file_name), GUI_URL, TIMEOUT)
         elif file_name == "script.txt":
-            gui_client.get_file(file_name, problem_id, tmp_script_path, GUI_URL, FETCH_TIMEOUT)
+            gui_client.get_file(file_name, problem_id, tmp_script_path, GUI_URL, TIMEOUT)
+        elif lib_destination_directory is not None: 
+            gui_client.get_file(file_name, problem_id, os.path.join(lib_destination_directory, file_name), GUI_URL, TIMEOUT)
 
 
     # parsing the script
     problem_specification = ProblemSpecificationSchema(id=problem_id)
     try: 
-        with open(tmp_script_path, "r") as script_file:
+        with open(tmp_script_path, "r") as script_file: # * possible long script file
             problem_specification = script_parser.parse_script(script_file.read(), problem_id) or problem_specification
-        print(f"Parsed problem specification:\n {problem_specification}")
+        print(f"Parsed problem specification: \n{problem_specification}")
     except Exception as e:
         print(f"An error occurred while parsing the script: {e}")
 
