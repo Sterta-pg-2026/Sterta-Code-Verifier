@@ -79,7 +79,11 @@ f"""
     return info_content
 
 def get_debug_formatted(result: SubmissionResultSchema) -> str:
-    debug_content = "ok"#result.model_dump_json()
+    debug_content = ""
+    if result.debug:
+        converter = ansi2html.Ansi2HTMLConverter(inline=True)
+        debug_parsed = converter.convert(result.debug, full=False)
+        debug_content += f"""<pre style='font-family: monospace;'>{debug_parsed}</pre>"""
     return debug_content
 
     

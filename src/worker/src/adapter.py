@@ -72,6 +72,7 @@ def report_result(submission_id: str, result: SubmissionResultSchema) -> None:
     print(f"Reported result for submission {submission_id} with score {result_formatter.get_result_score(result)}, response: {msg}")     
 
 def fetch_problem(problem_id: str, destination_directory: str, lib_destination_directory: Optional[str]=None) -> ProblemSpecificationSchema:
+
     # initializing workspace
     problem_workspace = f'/tmp/problem'
     tmp_script_path = os.path.join(problem_workspace, "script.txt")
@@ -90,18 +91,15 @@ def fetch_problem(problem_id: str, destination_directory: str, lib_destination_d
             gui_client.get_file(file_name, problem_id, os.path.join(destination_directory, file_name), GUI_URL, TIMEOUT)
         elif file_name == "script.txt":
             gui_client.get_file(file_name, problem_id, tmp_script_path, GUI_URL, TIMEOUT)
-        elif lib_destination_directory is not None: 
+        elif lib_destination_directory: 
             gui_client.get_file(file_name, problem_id, os.path.join(lib_destination_directory, file_name), GUI_URL, TIMEOUT)
 
 
     # parsing the script
     problem_specification = ProblemSpecificationSchema(id=problem_id)
-    try: 
+    if os.path.exists(tmp_script_path):
         with open(tmp_script_path, "r") as script_file: # * possible long script file
             problem_specification = script_parser.parse_script(script_file.read(), problem_id) or problem_specification
-        print(f"Parsed problem specification: \n{problem_specification}")
-    except Exception as e:
-        print(f"An error occurred while parsing the script: {e}")
 
     return problem_specification
 

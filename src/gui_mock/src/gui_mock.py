@@ -7,8 +7,8 @@ import os
 
 # SKIP = 192
 SKIP = 0
-LIMIT = 300
-SET = 1571
+LIMIT = 10
+SET = 358
 SUBMISSIONS = f"test_files/submissions-{SET}"
 TESTS = f"test_files/tests-{SET}"
 QUEUE = "stos2025"

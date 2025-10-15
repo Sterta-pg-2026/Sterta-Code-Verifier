@@ -24,6 +24,7 @@ class TestResultSchema(BaseModel):
 class SubmissionResultSchema(BaseModel):
     points: int = 0
     info: Optional[str] = None
+    debug: Optional[str] = None
     test_results: List[TestResultSchema] = []
     
     def __str__(self) -> str:
@@ -47,8 +48,8 @@ class SubmissionResultSchema(BaseModel):
             ret += "+-----------------------+\n"
             ret += "|   compilation error   |\n"
             ret += "+-----------------------+"
-        # if self.info:
-            # ret += "\n\033[33mDebug info\033[0m: " + self.info[:-2]
+        if self.info:
+            ret += "\n\033[33mDebug info\033[0m: " + self.info[:-1]
         return ret
 
 

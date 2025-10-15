@@ -9,12 +9,14 @@ import docker.models
 import docker.models.containers
 from types import FrameType
 from natsort import natsorted
+from common.enums import Ansi
+from logger import get_logger
 from typing import List, Optional
 from common.schemas import ProblemSpecificationSchema, SubmissionResultSchema, TestResultSchema
 
 
 FETCH_TIMEOUT = (5, 15)  # seconds
-POOLING_INTERVAL = 100e-3  # seconds
+POOLING_INTERVAL = 1000e-3  # seconds
 CONTAINERS_TIMEOUT = 300
 INFO_LENGTH_LIMIT = 2*5000
 CONTAINERS_FILE_SIZE_LIMIT = "5g"
@@ -42,20 +44,38 @@ def main() -> None:
         if should_wait:
             time.sleep(POOLING_INTERVAL)
 
-def get_debug(path: str) -> Optional[str]:
+def fetch_compilation_info(path: str) -> Optional[str]:
     comp_file_path = os.path.join(path, "comp.txt")
     try:
-        with open(comp_file_path, "r") as comp_file:
-            content = comp_file.read(INFO_LENGTH_LIMIT)
-            if comp_file.read(1):
-                content += "\033[0m\033[0m..." #todo: possible ANSI escape sequences cut off
+        with open(comp_file_path, "r", encoding="utf-8", errors="ignore") as f:
+            content = ""
+            for line in f:
+                if len(content) + len(line) > INFO_LENGTH_LIMIT:
+                    break
+                content += line
+           
     except Exception:
         return None
     return content if content else None
 
+def fetch_debug_logs(log_path: Optional[str]) -> Optional[str]:
+    try:
+        if log_path and os.path.exists(log_path):
+            with open(log_path, "r", encoding="utf-8", errors="ignore") as log_file:
+                content = ""
+                for line in log_file:
+                    if len(content) + len(line) > INFO_LENGTH_LIMIT*2:
+                        print("Log file too long, truncating...")
+                        break
+                    content += line
+                return content
+    except Exception:
+        return None
+
+
 def get_results(path: str) -> SubmissionResultSchema:
     submission_result = SubmissionResultSchema()
-    submission_result.info = get_debug(path)
+    submission_result.info = fetch_compilation_info(path)
 
     points = 0
     test_names: List[str] = []
@@ -87,20 +107,15 @@ def get_results(path: str) -> SubmissionResultSchema:
     submission_result.points = points
     return submission_result
 
+
 def report_result(submission_id: str, result: Optional[SubmissionResultSchema]) -> None:
-    print(f"Reporting result for submission {submission_id}")
-    
     if result is None:
         result = SubmissionResultSchema()
         try:
-            result.info = get_debug(os.path.join(DATA_LOCAL_PATH, "out"))
+            result.info = fetch_compilation_info(os.path.join(DATA_LOCAL_PATH, "out"))
         except Exception:
-            result.info = "Error while running submission"
-    
-    try:
-        adapter.report_result(submission_id, result)
-    except Exception as e:
-        print(f"Error while reporting result: {e}")
+            result.info = "Error while running submission"    
+    adapter.report_result(submission_id, result)
 
 
 def init_worker_files() -> None:
@@ -114,6 +129,7 @@ def init_worker_files() -> None:
     os.makedirs(os.path.join(DATA_LOCAL_PATH, "conf"))
     os.makedirs(os.path.join(DATA_LOCAL_PATH, "src"))
     os.makedirs(os.path.join(DATA_LOCAL_PATH, "lib"))
+    os.makedirs(os.path.join(DATA_LOCAL_PATH, "logs"))
     os.makedirs(os.path.join(DATA_LOCAL_PATH, "tests"))
 
 def archive_worker_files() -> None:
@@ -130,7 +146,7 @@ def save_problem_specification(problem_specification: Optional[ProblemSpecificat
         problem_specification_local_path = os.path.join(DATA_LOCAL_PATH, "conf", "problem_specification.json")
         with open(problem_specification_local_path, "w") as f:
             json.dump(problem_specification.model_dump(), f)
-        print(f"Problem specification saved to {problem_specification_local_path}")
+
 
 
 def execute_submission_pipeline() -> bool:
@@ -140,7 +156,7 @@ def execute_submission_pipeline() -> bool:
     submission_host_path: str = os.path.join(DATA_HOST_PATH, "src")
     lib_local_path: str = os.path.join(DATA_LOCAL_PATH, "lib")
     # lib_host_path: str = os.path.join(DATA_HOST_PATH, "lib") # todo: use lib path
-
+    logs_local_path: str = os.path.join(DATA_LOCAL_PATH, "logs")
 
     # * ----------------------------------
     # * Initialize worker files
@@ -149,19 +165,30 @@ def execute_submission_pipeline() -> bool:
         init_worker_files()
     except Exception as e:
         print(f"Error while initializing worker files: {e}")
-        return True
+        
+    logger = get_logger("worker_submission_proccessing_workflow", os.path.join(logs_local_path, "worker.log"))
 
+    logger.info(f"{Ansi.BOLD.value}{NAME}{Ansi.RESET.value} is starting submission processing workflow.")
 
     # * ----------------------------------
     # * Fetch submission
     # * ----------------------------------
     try:
         submission = adapter.fetch_submission(submission_local_path)
-        if submission is None or submission.problem_specification.id is None:
-            return True
     except Exception as e:
-        print(f"Error while fetching submission: {e}")
+        logger.error(f"Error while fetching submission: {e}")
         return True
+
+    
+    if submission is None:
+        logger.info("No submission fetched.")
+        return True
+    
+    if submission.problem_specification.id is None:
+        logger.info("No problem found.")
+        return True
+
+    logger.info(f"Fetched submission {submission.id} for problem {submission.problem_specification.id} by {submission.submitted_by}")
 
 
     # * ----------------------------------
@@ -170,8 +197,9 @@ def execute_submission_pipeline() -> bool:
     try:
         problem = adapter.fetch_problem(submission.problem_specification.id, problem_local_path, lib_local_path)
         submission.problem_specification = problem
+        logger.info(f"Fetched problem {problem.id} for submission {submission.id}")
     except Exception as e:
-        print(f"Error while fetching problem: {e}")
+        logger.error(f"Error while fetching problem: {e}")
         return True
     
 
@@ -179,32 +207,42 @@ def execute_submission_pipeline() -> bool:
     # * Save problem specification
     # * ----------------------------------
     try:
-       save_problem_specification(submission.problem_specification)
+        save_problem_specification(submission.problem_specification)
+        logger.info(f"Problem specification saved successfully: \n\n{submission.problem_specification}\n")
     except Exception as e:
-        print(f"Error while saving problem specification: {e}")
+        logger.error(f"Error while saving problem specification: {e}")
 
 
     # * ----------------------------------
     # * Run subcontainers
     # * ----------------------------------
-    print(f"Running submission {submission.id}")
+    logger.info(f"Running containers for submission {submission.id} with image {submission.comp_image} and mainfile {submission.mainfile}")
     result: Optional[SubmissionResultSchema] = run_containers(
         submission_host_path,
         problem_host_path,
         submission.comp_image,
         submission.mainfile,
     )
-
+    logger.info(f"Containers finished for submission {submission.id}")
+    logger.info(f"Result for submission {submission.id}: \n\n{result}\n")
+    logger.info(f"{Ansi.BOLD.value}{NAME}{Ansi.RESET.value} has finished processing submission {submission.id}.")
+    if result:
+        result.debug = fetch_debug_logs(os.path.join(logs_local_path, "worker.log"))
 
     # * ----------------------------------
     # * Report result
     # * ----------------------------------
-    report_result(submission.id, result)
+    try:
+        report_result(submission.id, result)
+    except Exception as e:
+        print(f"Error while reporting result: {e}")
 
 
     # * ----------------------------------
     # * Archive worker files if debug mode is enabled
     # * ----------------------------------
+
+
     if IS_DEBUG_MODE_ENABLED:
         try:
             archive_worker_files()
@@ -315,7 +353,6 @@ def run_containers(
         print(f"Error while getting results: {e}")
         return None
 
-    print(result)
     return result
 
 

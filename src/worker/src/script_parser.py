@@ -146,10 +146,9 @@ def extract_raw_problem_script(script: str) -> Tuple[Dict[int, Dict[str, Any]], 
     return rv, add_files
 
 def parse_script(script: str, problem_id: str) -> Optional[ProblemSpecificationSchema]:
-    if not script:
-        print("Script is empty")
+    if script.strip() == "":
         return None
-    
+
     try:
         result, _ = extract_raw_problem_script(script) # type: ignore
         tests: List[TestSpecificationSchema] = []
