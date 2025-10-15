@@ -17,7 +17,7 @@ FETCH_TIMEOUT = (5, 15)  # seconds
 POOLING_INTERVAL = 100e-3  # seconds
 CONTAINERS_TIMEOUT = 300
 INFO_LENGTH_LIMIT = 2*5000
-CONTAINERS_FILE_SIZE_LIMIT = "5G"
+CONTAINERS_FILE_SIZE_LIMIT = "5g"
 CONTAINERS_MEMORY_LIMIT = "512m"
 HOSTNAME = os.environ['HOSTNAME']
 NAME: str =  docker.from_env().containers.get(HOSTNAME).name or HOSTNAME
@@ -237,7 +237,7 @@ def run_containers(
             mem_limit=CONTAINERS_MEMORY_LIMIT,
             network_disabled=True,
             security_opt=["no-new-privileges"],
-            storage_opt={"size": CONTAINERS_FILE_SIZE_LIMIT},
+            # storage_opt={"size": CONTAINERS_FILE_SIZE_LIMIT},
             environment={
                 "SRC": "/data/src",
                 "OUT": "/data/out",
@@ -261,7 +261,7 @@ def run_containers(
             remove=True,
             mem_limit=CONTAINERS_MEMORY_LIMIT,
             network_disabled=True,
-            storage_opt={"size": CONTAINERS_FILE_SIZE_LIMIT},
+            # storage_opt={"size": CONTAINERS_FILE_SIZE_LIMIT},
             security_opt=["no-new-privileges"],
             environment={
                 "LOGS": "off",
@@ -290,7 +290,7 @@ def run_containers(
             remove=True,
             mem_limit=CONTAINERS_MEMORY_LIMIT,
             network_disabled=True,
-            storage_opt={"size": CONTAINERS_FILE_SIZE_LIMIT},
+            # storage_opt={"size": CONTAINERS_FILE_SIZE_LIMIT},
             security_opt=["no-new-privileges"],
             environment={
                 "LOGS": "off",

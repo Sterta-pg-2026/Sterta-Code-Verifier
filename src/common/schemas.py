@@ -39,7 +39,7 @@ class SubmissionResultSchema(BaseModel):
                 if result.ret_code != 0:
                     color = 173
                 ret += f"|\033[48;5;{color}m\033[38;5;232m {result.test_name:>4} | "
-                ret += f"{result.time:.2f} | {size_to_string(result.memory):>10} | {result.ret_code:>3} \033[0m| {result.info}\n"
+                ret += f"{result.time:.2f} | {size_to_string(result.memory):>10} | {result.ret_code:>3} \033[0m| {result.info[:1000]}\n"
             ret += "+------+------+------------+-----+\n"
             ret += "| " + f"points: {self.points}".center(30) + " |\n"
             ret += "+------+------+------------+-----+"
@@ -47,8 +47,8 @@ class SubmissionResultSchema(BaseModel):
             ret += "+-----------------------+\n"
             ret += "|   compilation error   |\n"
             ret += "+-----------------------+"
-        if self.info:
-            ret += "\n\033[33mDebug info\033[0m: " + self.info[:-2]
+        # if self.info:
+            # ret += "\n\033[33mDebug info\033[0m: " + self.info[:-2]
         return ret
 
 

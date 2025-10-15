@@ -6,10 +6,11 @@ import os
 
 
 # SKIP = 192
-SKIP = 192
-LIMIT = 1
-SUBMISSIONS = "test_files/submissions"
-TESTS = "test_files/tests"
+SKIP = 0
+LIMIT = 300
+SET = 1571
+SUBMISSIONS = f"test_files/submissions-{SET}"
+TESTS = f"test_files/tests-{SET}"
 QUEUE = "stos2025"
 RESULT_DIR = "received_results"
 

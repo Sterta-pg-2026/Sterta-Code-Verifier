@@ -3,9 +3,11 @@ import zipfile
 import shutil
 from pathlib import Path
 
+# SET = 358
+SET = 1571
 DIR = Path("/home/stos/Projekt_Inzynierski-2025/test_files/")
-FILE = DIR / "sources-1347.zip"
-DST = DIR / "submissions"
+FILE = DIR / f"sources-{SET}.zip"
+DST = DIR / f"submissions-{SET}"
 
 
 def lowercase_includes(root_dir: Path):
