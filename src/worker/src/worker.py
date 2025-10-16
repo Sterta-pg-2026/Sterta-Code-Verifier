@@ -5,14 +5,12 @@ import docker
 import shutil
 import signal
 import adapter
-import docker.models
-import docker.models.containers
 from types import FrameType
 from natsort import natsorted
 from common.enums import Ansi
 from logger import get_logger
-from typing import List, Optional
-from common.schemas import ProblemSpecificationSchema, SubmissionResultSchema, TestResultSchema
+from typing import Dict, List, Optional
+from common.schemas import ProblemSpecificationSchema, SubmissionResultSchema, TestResultSchema, VolumeMappingSchema
 
 
 FETCH_TIMEOUT = (5, 15)  # seconds
@@ -36,7 +34,7 @@ def handle_signal(signum: int, frame: Optional[FrameType]) -> None:
     exit(0)
 
 
-def main() -> None:
+def mainloop() -> None:
     signal.signal(signal.SIGINT, handle_signal)
     signal.signal(signal.SIGTERM, handle_signal)
     while True:
@@ -72,7 +70,6 @@ def fetch_debug_logs(log_path: Optional[str]) -> Optional[str]:
     except Exception:
         return None
 
-
 def get_results(path: str) -> SubmissionResultSchema:
     submission_result = SubmissionResultSchema()
     submission_result.info = fetch_compilation_info(path)
@@ -107,7 +104,6 @@ def get_results(path: str) -> SubmissionResultSchema:
     submission_result.points = points
     return submission_result
 
-
 def report_result(submission_id: str, result: Optional[SubmissionResultSchema]) -> None:
     if result is None:
         result = SubmissionResultSchema()
@@ -116,7 +112,6 @@ def report_result(submission_id: str, result: Optional[SubmissionResultSchema]) 
         except Exception:
             result.info = "Error while running submission"    
     adapter.report_result(submission_id, result)
-
 
 def init_worker_files() -> None:
     os.umask(0)
@@ -147,7 +142,26 @@ def save_problem_specification(problem_specification: Optional[ProblemSpecificat
         with open(problem_specification_local_path, "w") as f:
             json.dump(problem_specification.model_dump(), f)
 
-
+def run_container(
+    client: docker.DockerClient,
+    image: str,
+    memory_limit: str = CONTAINERS_MEMORY_LIMIT,
+    timeout: int = CONTAINERS_TIMEOUT,
+    environment: Dict[str, str] = {},
+    volume_mappings: List[VolumeMappingSchema] = [],
+) -> None:
+    container = client.containers.run( # type: ignore
+        image=image,
+        detach=True,
+        remove=True,
+        mem_limit=memory_limit,
+        network_disabled=True,
+        security_opt=["no-new-privileges"],
+        # storage_opt={"size": CONTAINERS_FILE_SIZE_LIMIT},
+        environment=environment,
+        volumes={volume_mapping.key(): volume_mapping.value() for volume_mapping in volume_mappings},
+    )
+    container.wait(timeout=timeout)
 
 def execute_submission_pipeline() -> bool:
     problem_local_path: str = os.path.join(DATA_LOCAL_PATH, "tests")
@@ -252,12 +266,11 @@ def execute_submission_pipeline() -> bool:
     
     return False
 
-
 def run_containers(
     submission_path: str,
     tests_path: str,
     comp_image: str,
-    mainfile: Optional[str] = None
+    mainfile: Optional[str] = None,
 ) -> Optional[SubmissionResultSchema]:
     
     mainfile = mainfile or "main.py"
@@ -266,41 +279,31 @@ def run_containers(
     artifacts_std_path = os.path.join(DATA_HOST_PATH, "std")
     artifacts_out_path = os.path.join(DATA_HOST_PATH, "out")
     
-    client = docker.from_env()
-    try:
-        container: docker.models.containers.Container = client.containers.run( # type: ignore
+    try: 
+        client = docker.from_env()
+        run_container(
+            client=client,
             image=comp_image,
-            detach=True,
-            remove=True,
-            mem_limit=CONTAINERS_MEMORY_LIMIT,
-            network_disabled=True,
-            security_opt=["no-new-privileges"],
-            # storage_opt={"size": CONTAINERS_FILE_SIZE_LIMIT},
             environment={
                 "SRC": "/data/src",
                 "OUT": "/data/out",
                 "BIN": "/data/bin",
                 "MAINFILE": mainfile,
             },
-            volumes={
-                submission_path: {"bind": "/data/src", "mode": "ro"},
-                artifacts_bin_path: {"bind": "/data/bin", "mode": "rw"},
-                artifacts_out_path: {"bind": "/data/out", "mode": "rw"},
-            },
+            volume_mappings=[
+                VolumeMappingSchema(host_path=submission_path, container_path="/data/src"),
+                VolumeMappingSchema(host_path=artifacts_bin_path, container_path="/data/bin", read_only=False),
+                VolumeMappingSchema(host_path=artifacts_out_path, container_path="/data/out", read_only=False),
+            ],
         )
-        container.wait(timeout=CONTAINERS_TIMEOUT)
     except Exception as e:
         print(f"Error while running compiler container: {e}")
         return None
+
     try:
-        container: docker.models.containers.Container = client.containers.run( # type: ignore
+        run_container(
+            client=client,
             image=EXEC_IMAGE,
-            detach=True,
-            remove=True,
-            mem_limit=CONTAINERS_MEMORY_LIMIT,
-            network_disabled=True,
-            # storage_opt={"size": CONTAINERS_FILE_SIZE_LIMIT},
-            security_opt=["no-new-privileges"],
             environment={
                 "LOGS": "off",
                 "IN": "/data/in",
@@ -309,43 +312,39 @@ def run_containers(
                 "BIN": "/data/bin",
                 "CONF": "/data/conf",
             },
-            volumes={
-                tests_path: {"bind": "/data/in", "mode": "ro"},
-                conf_path: {"bind": "/data/conf", "mode": "ro"},
-                artifacts_bin_path: {"bind": "/data/bin", "mode": "ro"},
-                artifacts_std_path: {"bind": "/data/std", "mode": "rw"},
-                artifacts_out_path: {"bind": "/data/out", "mode": "rw"},
-            },
+            volume_mappings=[
+                VolumeMappingSchema(host_path=tests_path, container_path="/data/in"),
+                VolumeMappingSchema(host_path=conf_path, container_path="/data/conf"),
+                VolumeMappingSchema(host_path=artifacts_bin_path, container_path="/data/bin"),
+                VolumeMappingSchema(host_path=artifacts_std_path, container_path="/data/std", read_only=False),
+                VolumeMappingSchema(host_path=artifacts_out_path, container_path="/data/out", read_only=False),
+            ],
         )
-        container.wait(timeout=CONTAINERS_TIMEOUT)
     except Exception as e:
         print(f"Error while running execution container: {e}")
         return None
+
+
     try:
-        container: docker.models.containers.Container = client.containers.run(  # type: ignore
+        run_container(
+            client=client,
             image=JUDGE_IMAGE,
-            detach=True,
-            remove=True,
-            mem_limit=CONTAINERS_MEMORY_LIMIT,
-            network_disabled=True,
-            # storage_opt={"size": CONTAINERS_FILE_SIZE_LIMIT},
-            security_opt=["no-new-privileges"],
+            volume_mappings=[
+                VolumeMappingSchema(host_path=tests_path, container_path="/data/ans"),
+                VolumeMappingSchema(host_path=artifacts_std_path, container_path="/data/in"),
+                VolumeMappingSchema(host_path=artifacts_out_path, container_path="/data/out", read_only=False),
+            ],
             environment={
                 "LOGS": "off",
                 "IN": "/data/in",
                 "OUT": "/data/out",
                 "ANS": "/data/ans",
             },
-            volumes={
-                tests_path: {"bind": "/data/ans", "mode": "ro"},
-                artifacts_std_path: {"bind": "/data/in", "mode": "ro"},
-                artifacts_out_path: {"bind": "/data/out", "mode": "rw"},
-            },
         )
-        container.wait(timeout=CONTAINERS_TIMEOUT)
     except Exception as e:
         print(f"Error while running judge container: {e}")
         return None
+
 
     try:
         result: SubmissionResultSchema = get_results(os.path.join(DATA_LOCAL_PATH, "out"))
@@ -357,4 +356,4 @@ def run_containers(
 
 
 if __name__ == "__main__":
-    main()
+    mainloop()

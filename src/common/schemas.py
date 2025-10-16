@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, NamedTuple, Optional
+from typing import Dict, List, NamedTuple, Optional
 
 from common.utils import size_to_string
 
@@ -43,7 +43,7 @@ class SubmissionResultSchema(BaseModel):
                 ret += f"{result.time:.2f} | {size_to_string(result.memory):>10} | {result.ret_code:>3} \033[0m| {result.info[:1000]}\n"
             ret += "+------+------+------------+-----+\n"
             ret += "| " + f"points: {self.points}".center(30) + " |\n"
-            ret += "+------+------+------------+-----+"
+            ret += "+--------------------------------+"
         else:
             ret += "+-----------------------+\n"
             ret += "|   compilation error   |\n"
@@ -89,3 +89,17 @@ class SubmissionGuiSchema(BaseModel):
     submission_id: str
     problem_id: str
     student_id: str
+
+
+class VolumeMappingSchema(BaseModel):
+    host_path: str
+    container_path: str
+    read_only: bool = True
+    def key(self) -> str:
+        return self.host_path
+    def value(self) -> Dict[str, str]:
+        return {
+            "bind": self.container_path,
+            "mode": "ro" if self.read_only else "rw"
+        }
+
