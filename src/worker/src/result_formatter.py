@@ -67,7 +67,7 @@ f"""
             <th>Maxrss [kB]</th>
             <th>Info</th>
         </tr>
-        {''.join(f"<tr class='{'success' if test.grade else ('failure' if test.ret_code >= 0 else 'eerror')}'><td>{test.test_name}</td><td>{test.ret_code if test.ret_code >= 0 else ''}</td><td>{test.time:.2f}</td><td>{test.memory:.0f}</td><td>{test.info}</td></tr>" for test in result.test_results)}
+        {''.join(f"<tr class='{'success' if test.grade else ('failure' if test.ret_code >= 0 else 'eerror')}'><td>{test.test_name}</td><td>{test.ret_code if test.ret_code >= 0 else ''}</td><td>{test.time:.2f}</td><td>{test.memory/1024:.0f}</td><td>{test.info}</td></tr>" for test in result.test_results)}
     </table>
 </div>
 """

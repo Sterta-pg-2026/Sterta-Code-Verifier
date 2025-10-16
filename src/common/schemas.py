@@ -61,19 +61,21 @@ class TestSpecificationSchema(BaseModel):
 
 
 class ProblemSpecificationSchema(BaseModel):
-    id: Optional[str]
+    id: str
     tests: List[TestSpecificationSchema] = []
 
     def __str__(self) -> str:
         ret = ""
         if len(self.tests) > 0:
-            ret += "+------+------+------------+\n"
-            ret += "| name | time |   memory   |\n"
-            ret += "+------+------+------------+\n"
+            ret += f"+------+-------------------+\n"
+            ret += f"|      |{'limits'.center(19)}|\n"
+            ret += f"+------+------+------------+\n"
+            ret += f"| name | time |   memory   |\n"
+            ret += f"+------+------+------------+\n"
             for test in self.tests:
                 ret += f"| {test.test_name:>4} | "
                 ret += f"{test.time_limit:.2f} | {size_to_string(test.total_memory_limit):>10} |\n"
-            ret += "+------+------+------------+"
+            ret += f"+------+------+------------+"
         return ret
 
 

@@ -9,6 +9,7 @@ from types import FrameType
 from natsort import natsorted
 from common.enums import Ansi
 from logger import get_logger
+from docker.types import Ulimit
 from typing import Dict, List, Optional
 from common.schemas import ProblemSpecificationSchema, SubmissionResultSchema, TestResultSchema, VolumeMappingSchema
 
@@ -136,9 +137,13 @@ def archive_worker_files() -> None:
     backup_path = os.path.join(history_local_path)
     shutil.copytree(DATA_LOCAL_PATH, backup_path)
 
-def save_problem_specification(problem_specification: Optional[ProblemSpecificationSchema]) -> None:
+def save_problem_specification(
+    problem_specification: Optional[ProblemSpecificationSchema], 
+    destination_directory: str, 
+    name: str="problem_specification.json"
+) -> None:
      if problem_specification:
-        problem_specification_local_path = os.path.join(DATA_LOCAL_PATH, "conf", "problem_specification.json")
+        problem_specification_local_path = os.path.join(destination_directory, name)
         with open(problem_specification_local_path, "w") as f:
             json.dump(problem_specification.model_dump(), f)
 
@@ -155,6 +160,11 @@ def run_container(
         detach=True,
         remove=True,
         mem_limit=memory_limit,
+        pids_limit=50,
+        ulimits=[
+            Ulimit(name="fsize", soft=5 * 1024**3, hard=5 * 1024**3),
+            Ulimit(name="nofile", soft=1024, hard=4096),
+        ],
         network_disabled=True,
         security_opt=["no-new-privileges"],
         # storage_opt={"size": CONTAINERS_FILE_SIZE_LIMIT},
@@ -164,28 +174,41 @@ def run_container(
     container.wait(timeout=timeout)
 
 def execute_submission_pipeline() -> bool:
-    problem_local_path: str = os.path.join(DATA_LOCAL_PATH, "tests")
-    problem_host_path: str = os.path.join(DATA_HOST_PATH, "tests")
     submission_local_path: str = os.path.join(DATA_LOCAL_PATH, "src")
-    submission_host_path: str = os.path.join(DATA_HOST_PATH, "src")
+    problem_local_path: str = os.path.join(DATA_LOCAL_PATH, "tests")
     lib_local_path: str = os.path.join(DATA_LOCAL_PATH, "lib")
-    # lib_host_path: str = os.path.join(DATA_HOST_PATH, "lib") # todo: use lib path
+    conf_local_path: str = os.path.join(DATA_LOCAL_PATH, "conf")
     logs_local_path: str = os.path.join(DATA_LOCAL_PATH, "logs")
 
+    submission_host_path: str = os.path.join(DATA_HOST_PATH, "src")
+    problem_host_path: str = os.path.join(DATA_HOST_PATH, "tests")
+    lib_host_path: str = os.path.join(DATA_HOST_PATH, "lib")
+    conf_host_path = os.path.join(DATA_HOST_PATH, "conf")
+
+    artifacts_bin_host_path = os.path.join(DATA_HOST_PATH, "bin")
+    artifacts_std_host_path = os.path.join(DATA_HOST_PATH, "std")
+    artifacts_out_host_path = os.path.join(DATA_HOST_PATH, "out")
+
+
+
     # * ----------------------------------
-    # * Initialize worker files
+    # * 1. Initialize worker files
     # * ----------------------------------
     try:
         init_worker_files()
     except Exception as e:
         print(f"Error while initializing worker files: {e}")
+        return True
         
-    logger = get_logger("worker_submission_proccessing_workflow", os.path.join(logs_local_path, "worker.log"))
+    logger = get_logger("worker_submission_proccessing_workflow", os.path.join(logs_local_path, "worker.log"), False)
 
     logger.info(f"{Ansi.BOLD.value}{NAME}{Ansi.RESET.value} is starting submission processing workflow.")
+    logger.info(f"Worker files initialized successfully.")
+
+
 
     # * ----------------------------------
-    # * Fetch submission
+    # * 2. Fetch submission
     # * ----------------------------------
     try:
         submission = adapter.fetch_submission(submission_local_path)
@@ -193,20 +216,16 @@ def execute_submission_pipeline() -> bool:
         logger.error(f"Error while fetching submission: {e}")
         return True
 
-    
     if submission is None:
         logger.info("No submission fetched.")
         return True
     
-    if submission.problem_specification.id is None:
-        logger.info("No problem found.")
-        return True
-
     logger.info(f"Fetched submission {submission.id} for problem {submission.problem_specification.id} by {submission.submitted_by}")
 
 
+
     # * ----------------------------------
-    # * Fetch problem
+    # * 3. Fetch problem
     # * ----------------------------------
     try:
         problem = adapter.fetch_problem(submission.problem_specification.id, problem_local_path, lib_local_path)
@@ -217,89 +236,61 @@ def execute_submission_pipeline() -> bool:
         return True
     
 
+
     # * ----------------------------------
-    # * Save problem specification
+    # * 4. Save problem specification
     # * ----------------------------------
     try:
-        save_problem_specification(submission.problem_specification)
-        logger.info(f"Problem specification saved successfully: \n\n{submission.problem_specification}\n")
+        save_problem_specification(submission.problem_specification, conf_local_path)
+        logger.info(f"Problem specification (script.txt) parsed and saved successfully: \n\n{submission.problem_specification}\n")
     except Exception as e:
         logger.error(f"Error while saving problem specification: {e}")
+        # * continue processing even if saving problem specification fails
+
 
 
     # * ----------------------------------
-    # * Run subcontainers
+    # * 5. Prepare subcontainer parameters
     # * ----------------------------------
+    client = docker.from_env()
     logger.info(f"Running containers for submission {submission.id} with image {submission.comp_image} and mainfile {submission.mainfile}")
-    result: Optional[SubmissionResultSchema] = run_containers(
-        submission_host_path,
-        problem_host_path,
-        submission.comp_image,
-        submission.mainfile,
-    )
-    logger.info(f"Containers finished for submission {submission.id}")
-    logger.info(f"Result for submission {submission.id}: \n\n{result}\n")
-    logger.info(f"{Ansi.BOLD.value}{NAME}{Ansi.RESET.value} has finished processing submission {submission.id}.")
-    if result:
-        result.debug = fetch_debug_logs(os.path.join(logs_local_path, "worker.log"))
+    mainfile = submission.mainfile or "main.py"
 
-    # * ----------------------------------
-    # * Report result
-    # * ----------------------------------
-    try:
-        report_result(submission.id, result)
-    except Exception as e:
-        print(f"Error while reporting result: {e}")
 
 
     # * ----------------------------------
-    # * Archive worker files if debug mode is enabled
+    # * 6. Run compiler subcontainer
     # * ----------------------------------
-
-
-    if IS_DEBUG_MODE_ENABLED:
-        try:
-            archive_worker_files()
-        except Exception as e:
-            print(f"Error while archiving worker files: {e}")
-            return True
-    
-    return False
-
-def run_containers(
-    submission_path: str,
-    tests_path: str,
-    comp_image: str,
-    mainfile: Optional[str] = None,
-) -> Optional[SubmissionResultSchema]:
-    
-    mainfile = mainfile or "main.py"
-    conf_path = os.path.join(DATA_HOST_PATH, "conf")
-    artifacts_bin_path = os.path.join(DATA_HOST_PATH, "bin")
-    artifacts_std_path = os.path.join(DATA_HOST_PATH, "std")
-    artifacts_out_path = os.path.join(DATA_HOST_PATH, "out")
-    
+    logger.info(f"Running compiler container for submission {submission.id}")
     try: 
         client = docker.from_env()
         run_container(
             client=client,
-            image=comp_image,
+            image=submission.comp_image,
             environment={
                 "SRC": "/data/src",
+                "LIB": "/data/lib",
                 "OUT": "/data/out",
                 "BIN": "/data/bin",
                 "MAINFILE": mainfile,
             },
             volume_mappings=[
-                VolumeMappingSchema(host_path=submission_path, container_path="/data/src"),
-                VolumeMappingSchema(host_path=artifacts_bin_path, container_path="/data/bin", read_only=False),
-                VolumeMappingSchema(host_path=artifacts_out_path, container_path="/data/out", read_only=False),
+                VolumeMappingSchema(host_path=submission_host_path, container_path="/data/src"),
+                VolumeMappingSchema(host_path=lib_host_path, container_path="/data/lib"),
+                VolumeMappingSchema(host_path=artifacts_bin_host_path, container_path="/data/bin", read_only=False),
+                VolumeMappingSchema(host_path=artifacts_out_host_path, container_path="/data/out", read_only=False),
             ],
         )
     except Exception as e:
-        print(f"Error while running compiler container: {e}")
-        return None
+        logger.error(f"Error while running compiler container: {e}")
+        return True
 
+
+
+    # * ----------------------------------
+    # * 7. Run execution subcontainer
+    # * ----------------------------------
+    logger.info(f"Running execution container for submission {submission.id}")
     try:
         run_container(
             client=client,
@@ -313,26 +304,31 @@ def run_containers(
                 "CONF": "/data/conf",
             },
             volume_mappings=[
-                VolumeMappingSchema(host_path=tests_path, container_path="/data/in"),
-                VolumeMappingSchema(host_path=conf_path, container_path="/data/conf"),
-                VolumeMappingSchema(host_path=artifacts_bin_path, container_path="/data/bin"),
-                VolumeMappingSchema(host_path=artifacts_std_path, container_path="/data/std", read_only=False),
-                VolumeMappingSchema(host_path=artifacts_out_path, container_path="/data/out", read_only=False),
+                VolumeMappingSchema(host_path=problem_host_path, container_path="/data/in"),
+                VolumeMappingSchema(host_path=conf_host_path, container_path="/data/conf"),
+                VolumeMappingSchema(host_path=artifacts_bin_host_path, container_path="/data/bin"),
+                VolumeMappingSchema(host_path=artifacts_std_host_path, container_path="/data/std", read_only=False),
+                VolumeMappingSchema(host_path=artifacts_out_host_path, container_path="/data/out", read_only=False),
             ],
         )
     except Exception as e:
-        print(f"Error while running execution container: {e}")
-        return None
+        logger.error(f"Error while running execution container: {e}")
+        return True
 
 
+
+    # * ----------------------------------
+    # * 8. Run judge subcontainer
+    # * ----------------------------------
+    logger.info(f"Running judge container for submission {submission.id}")
     try:
         run_container(
             client=client,
             image=JUDGE_IMAGE,
             volume_mappings=[
-                VolumeMappingSchema(host_path=tests_path, container_path="/data/ans"),
-                VolumeMappingSchema(host_path=artifacts_std_path, container_path="/data/in"),
-                VolumeMappingSchema(host_path=artifacts_out_path, container_path="/data/out", read_only=False),
+                VolumeMappingSchema(host_path=problem_host_path, container_path="/data/ans"),
+                VolumeMappingSchema(host_path=artifacts_std_host_path, container_path="/data/in"),
+                VolumeMappingSchema(host_path=artifacts_out_host_path, container_path="/data/out", read_only=False),
             ],
             environment={
                 "LOGS": "off",
@@ -342,17 +338,50 @@ def run_containers(
             },
         )
     except Exception as e:
-        print(f"Error while running judge container: {e}")
-        return None
+        logger.error(f"Error while running judge container: {e}")
+        return True
 
+    
 
+    # * ----------------------------------
+    # * 9. Fetch results
+    # * ----------------------------------
+    logger.info(f"Fetching results for submission {submission.id}")
     try:
         result: SubmissionResultSchema = get_results(os.path.join(DATA_LOCAL_PATH, "out"))
     except Exception as e:
-        print(f"Error while getting results: {e}")
-        return None
+        logger.error(f"Error while getting results: {e}")
+        return True
 
-    return result
+    logger.info(f"Containers finished for submission {submission.id}")
+    logger.info(f"Result for submission {submission.id}: \n\n{result}\n")
+    logger.info(f"{Ansi.BOLD.value}{NAME}{Ansi.RESET.value} has finished processing submission {submission.id}.")
+    if result:
+        result.debug = fetch_debug_logs(os.path.join(logs_local_path, "worker.log"))
+
+
+
+    # * ----------------------------------
+    # * 10. Report result
+    # * ----------------------------------
+    try:
+        report_result(submission.id, result)
+    except Exception as e:
+        print(f"Error while reporting result: {e}")
+
+
+
+    # * ----------------------------------
+    # * 11. Archive worker files if debug mode is enabled
+    # * ----------------------------------
+    if IS_DEBUG_MODE_ENABLED:
+        try:
+            archive_worker_files()
+        except Exception as e:
+            print(f"Error while archiving worker files: {e}")
+            return True
+    
+    return False
 
 
 if __name__ == "__main__":
