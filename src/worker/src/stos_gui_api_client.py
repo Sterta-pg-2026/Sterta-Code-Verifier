@@ -1,3 +1,14 @@
+"""STOS GUI API Client module.
+
+This module provides functionality for communicating with the STOS GUI API,
+handling file operations, submission retrieval, and result posting.
+
+It includes functions for:
+- Posting evaluation results back to the GUI
+- Retrieving problem files and specifications
+- Downloading submissions from the queue
+- Managing file transfers with size validation
+"""
 import requests
 import common.utils
 from urllib.parse import urljoin
@@ -12,6 +23,23 @@ RESULT_ENDPOINT = "io-result.php"
 MAX_FILE_SIZE = 1024 * 1024 * 1024 # 1 GiB
 
 def post_result(submission_id: str, result: StosGuiResultSchema, gui_url: str, timeout: Timeout) -> str:
+    """Post evaluation results back to the STOS GUI.
+    
+    Sends the evaluation results (result, info, debug) for a specific submission
+    to the GUI result endpoint via HTTP POST request.
+    
+    Args:
+        submission_id (str): Unique identifier of the submission.
+        result (StosGuiResultSchema): Evaluation results containing result, info, and debug data.
+        gui_url (str): Base URL of the STOS GUI.
+        timeout (Timeout): Request timeout configuration.
+    
+    Returns:
+        str: Response text from the GUI server.
+    
+    Raises:
+        requests.HTTPError: If the HTTP request fails.
+    """
     res_url: str = urljoin(gui_url, RESULT_ENDPOINT)
     files = {
         'result': ('result.txt', result.result, 'text/plain'),
@@ -29,6 +57,22 @@ def post_result(submission_id: str, result: StosGuiResultSchema, gui_url: str, t
 
 
 def get_problems_files_list(problem_id: str, gui_url: str, timeout: Timeout) -> List[str]:
+    """Get list of files associated with a specific problem.
+    
+    Retrieves the list of files available for a given problem from the STOS GUI
+    filesystem API. This includes test cases, libraries, and other problem resources.
+    
+    Args:
+        problem_id (str): Unique identifier of the problem.
+        gui_url (str): Base URL of the STOS GUI.
+        timeout (Timeout): Request timeout configuration.
+    
+    Returns:
+        List[str]: List of file names associated with the problem.
+    
+    Raises:
+        requests.HTTPError: If the HTTP request fails.
+    """
     fsapi_url: str = urljoin(gui_url, FSAPI_ENDPOINT)
     params: Dict[str, Any] = {
         "f": "list",
@@ -53,6 +97,25 @@ def get_problems_files_list(problem_id: str, gui_url: str, timeout: Timeout) -> 
 
 
 def get_file(file_name: str, problem_id: str, destination_file_path: str, gui_url: str, timeout: Timeout) -> None:
+    """Download a specific file from the problem filesystem.
+    
+    Downloads a file from the STOS GUI filesystem API and saves it to the
+    specified destination path. Includes file size validation and streaming download.
+    
+    Args:
+        file_name (str): Name of the file to download.
+        problem_id (str): Unique identifier of the problem.
+        destination_file_path (str): Local path where the file should be saved.
+        gui_url (str): Base URL of the STOS GUI.
+        timeout (Timeout): Request timeout configuration.
+    
+    Returns:
+        None
+    
+    Raises:
+        ValueError: If destination path is invalid or file exceeds size limit.
+        requests.HTTPError: If the HTTP request fails.
+    """
     fsapi_url: str = urljoin(gui_url, FSAPI_ENDPOINT)
     params: Dict[str, Any] = {
         "f": "get",
@@ -79,6 +142,25 @@ def get_file(file_name: str, problem_id: str, destination_file_path: str, gui_ur
 
 
 def get_submission(queue_name: str, destination_file_path: str, gui_url: str, timeout: Timeout) -> Optional[SubmissionGuiSchema]:
+    """Retrieve a submission from the processing queue.
+    
+    Downloads a submission from the STOS GUI queue API and saves it to the
+    specified destination. Parses submission metadata from response headers
+    and returns structured submission information.
+    
+    Args:
+        queue_name (str): Name of the queue to retrieve submission from.
+        destination_file_path (str): Local path where the submission file should be saved.
+        gui_url (str): Base URL of the STOS GUI.
+        timeout (Timeout): Request timeout configuration.
+    
+    Returns:
+        Optional[SubmissionGuiSchema]: Submission data if available, None if queue is empty.
+    
+    Raises:
+        ValueError: If destination path is invalid, headers are missing, or file exceeds size limit.
+        requests.HTTPError: If the HTTP request fails (except 404 which returns None).
+    """
     qapi_url: str = urljoin(gui_url, QAPI_ENDPOINT)
     params: Dict[str, str] = {
         "f": "get",

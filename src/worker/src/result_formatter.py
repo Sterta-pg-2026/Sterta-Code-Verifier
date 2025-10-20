@@ -1,11 +1,39 @@
+"""Result formatter module for STOS submission evaluation results.
+
+This module provides functionality to format submission evaluation results
+into various output formats including HTML tables, debug information,
+and result summaries for display in the STOS GUI.
+
+The formatter handles test results, compilation information, debug logs,
+and generates styled HTML output with proper formatting and color coding.
+"""
 import ansi2html
 from common.schemas import SubmissionResultSchema
 
 def get_result_score(result: SubmissionResultSchema) -> float:
+    """Calculate the percentage score for a submission result.
+    
+    Args:
+        result (SubmissionResultSchema): The submission result containing test results and points.
+    
+    Returns:
+        float: Percentage score (0-100) based on passed tests vs total tests.
+    """
     return 100*result.points / len(result.test_results) if len(result.test_results) > 0 else 0
 
 
 def get_result_formatted(result: SubmissionResultSchema) -> str:
+    """Format submission result into STOS GUI result format.
+    
+    Creates a formatted result string containing the score, format specifications,
+    and basic info message for the STOS GUI API.
+    
+    Args:
+        result (SubmissionResultSchema): The submission result to format.
+    
+    Returns:
+        str: Formatted result string with score and format specifications.
+    """
     score = get_result_score(result)
     result_content = \
 f"""
@@ -18,6 +46,18 @@ info=All tests passed
     
     
 def get_info_formatted(result: SubmissionResultSchema) -> str:
+    """Format submission result into detailed HTML info display.
+    
+    Creates a comprehensive HTML table showing test results with styling,
+    color coding for pass/fail/error states, and compilation information.
+    Includes CSS styling for professional presentation.
+    
+    Args:
+        result (SubmissionResultSchema): The submission result to format.
+    
+    Returns:
+        str: HTML formatted string with test results table and compilation info.
+    """
     score = get_result_score(result)
     info_content = \
 f"""
@@ -81,6 +121,17 @@ f"""
     return info_content
 
 def get_debug_formatted(result: SubmissionResultSchema) -> str:
+    """Format debug information into HTML display.
+    
+    Converts ANSI escape sequences in debug logs to HTML format
+    for proper display in the STOS GUI.
+    
+    Args:
+        result (SubmissionResultSchema): The submission result containing debug information.
+    
+    Returns:
+        str: HTML formatted debug information or empty string if no debug info.
+    """
     debug_content = ""
     if result.debug:
         converter = ansi2html.Ansi2HTMLConverter(inline=True)
