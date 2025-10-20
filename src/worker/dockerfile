@@ -1,28 +1,34 @@
-FROM docker:dind
+FROM alpine:3.21
 
-RUN apk add --no-cache python3 py3-pip
-RUN pip install --break-system-packages requests pydantic
+# setting up working directory
+WORKDIR /app
 
+
+# metadata
+LABEL org.opencontainers.image.title="stos_worker"
+LABEL org.opencontainers.image.description="Worker service for STOS project, responsible for executing tasks and managing data."
+LABEL org.opencontainers.image.version="1.0.0"
+LABEL org.opencontainers.image.authors="Damian Trowski <damiantrowski.c@gmail.com>"
+LABEL org.opencontainers.image.licenses="MIT"
+LABEL org.opencontainers.image.source="https://github.com/Stos-2025/Projekt_Inzynierski-2025"
+LABEL org.opencontainers.image.documentation="https://github.com/Stos-2025/Projekt_Inzynierski-2025"
+
+
+# coping files
+COPY worker/src/* .
+COPY common/*.py ./common/
+
+
+# installing dependencies
+RUN apk add --no-cache python3 py3-pip py3-requests py3-pydantic py3-docker-py py3-natsort
+RUN pip install --break-system-packages ansi2html
+
+
+# setting up user
 RUN addgroup -S stos
 RUN adduser -S stos -G stos
-# RUN usermod -aG docker stos
-
-WORKDIR /app
-COPY worker/worker.py .
-COPY common/common.py .
-
-ENV MASTER_URL=http://master:80
-ENV WORKERS_DATA_LOCAL_PATH=/workers
-ENV WORKERS_DATA_HOST_PATH=/home/damian/Projekty/Projekt_Inzynierski-2025/stos-files/workers
-
-ENV COMP_IMAGE_NAME=d4m14n/stos:gpp_comp-latest
-ENV EXEC_IMAGE_NAME=d4m14n/stos:exec-latest
-ENV JUDGE_IMAGE_NAME=d4m14n/stos:judge-latest
-
-EXPOSE 80
-
-# USER stos:stos
-ENTRYPOINT ["python3", "worker.py"]
+USER stos:stos
 
 
-#docker build -t worker ./src/worker
+# setting up entrypoint
+ENTRYPOINT ["python3", "-u" , "worker.py"]

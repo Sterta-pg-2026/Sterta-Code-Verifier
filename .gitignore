@@ -5,5 +5,10 @@
 *.exec.json
 *.judge.json
 *.pyc
-stos-files/
+**/__pycache__/
+
 stos_files/
+
+**/test_files/*
+!**/test_files/.gitkeep
+.venv/

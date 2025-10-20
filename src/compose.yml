@@ -1,0 +1,33 @@
+services:
+  worker:
+    image: stos_worker
+    restart: always
+    build:
+      dockerfile: worker/dockerfile
+    volumes:
+      # - ${STOS_FILES}/shared:/shared:rw
+      - ${STOS_FILES}:/workers:rw
+      - ${DOCKER_SOCK}:/var/run/docker.sock:rw
+    environment:
+      - WORKERS_DATA_LOCAL_PATH=/workers
+      - WORKERS_DATA_HOST_PATH=${STOS_FILES}
+      - EXEC_IMAGE_NAME=${EXEC_IMAGE_NAME}
+      - JUDGE_IMAGE_NAME=${JUDGE_IMAGE_NAME}
+      
+      - GUI_URL=${GUI_URL}
+      - QUEUE_COMPILER_DICT=${QUEUE_COMPILER_DICT}
+
+      - IS_DEBUG_MODE_ENABLED=${IS_DEBUG_MODE_ENABLED}
+    group_add:  
+      - ${DOCKER_GID}
+      - ${STOS_GID}
+    deploy:
+      mode: replicated
+      replicas: 4
+
+  # gui_mock:
+  #   image: gui_mock
+  #   build:
+  #     dockerfile: gui_mock/dockerfile
+  #   ports:
+  #     - "8080:80"
