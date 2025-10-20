@@ -17,7 +17,7 @@ from common.schemas import ProblemSpecificationSchema, SubmissionResultSchema, T
 POOLING_INTERVAL = 1000e-3  # seconds
 FETCH_TIMEOUT = (5, 15)  # seconds
 INFO_LENGTH_LIMIT = 2*5000
-CONTAINERS_TIMEOUT = 300
+CONTAINERS_TIMEOUT = 250  # seconds
 CONTAINERS_FILE_SIZE_LIMIT = "5g"
 CONTAINERS_MEMORY_LIMIT = "512m"
 HOSTNAME = os.environ['HOSTNAME']
@@ -39,7 +39,11 @@ def mainloop() -> None:
     signal.signal(signal.SIGINT, handle_signal)
     signal.signal(signal.SIGTERM, handle_signal)
     while True:
-        should_wait = process_submission_workflow()
+        should_wait = True
+        try:
+            should_wait = process_submission_workflow()
+        except Exception as e:
+            print(f"An error occurred in the mainloop: {e}")
         if should_wait:
             time.sleep(POOLING_INTERVAL)
 
@@ -266,9 +270,7 @@ def process_submission_workflow() -> bool:
     # * ----------------------------------
     # * 5. Prepare subcontainer parameters
     # * ----------------------------------
-    client = docker.from_env()
     logger.info(f"Running containers for submission {submission.id} with image {submission.comp_image} and mainfile {submission.mainfile}")
-    mainfile = submission.mainfile or "main.py"
 
 
 
@@ -286,7 +288,7 @@ def process_submission_workflow() -> bool:
                 "LIB": "/data/lib",
                 "OUT": "/data/out",
                 "BIN": "/data/bin",
-                "MAINFILE": mainfile,
+                "MAINFILE": submission.mainfile or "main.py",
             },
             volume_mappings=[
                 VolumeMappingSchema(host_path=submission_host_path, container_path="/data/src"),
@@ -306,6 +308,7 @@ def process_submission_workflow() -> bool:
     # * ----------------------------------
     logger.info(f"Running execution container for submission {submission.id}")
     try:
+        client = docker.from_env()
         run_container(
             client=client,
             image=EXEC_IMAGE,
@@ -336,6 +339,7 @@ def process_submission_workflow() -> bool:
     # * ----------------------------------
     logger.info(f"Running judge container for submission {submission.id}")
     try:
+        client = docker.from_env()
         run_container(
             client=client,
             image=JUDGE_IMAGE,
@@ -370,7 +374,7 @@ def process_submission_workflow() -> bool:
 
     logger.info(f"Containers finished for submission {submission.id}")
     logger.info(f"Result for submission {submission.id}: \n\n{result}\n")
-    logger.info(f"{Ansi.BOLD.value}{NAME}{Ansi.RESET.value} has finished processing submission {submission.id}.")
+    logger.info(f"{Ansi.BOLD.value}{NAME}{Ansi.RESET.value} has finished proccessing submission {submission.id}.")
     try:
         result.debug = fetch_debug_logs(os.path.join(logs_local_path, "worker.log"))
     except Exception:
