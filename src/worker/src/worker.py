@@ -127,7 +127,6 @@ def get_results(path: str) -> SubmissionResultSchema:
     return result
 
 
-
 def init_worker_files() -> None:
     os.umask(0)
     if os.path.exists(DATA_LOCAL_PATH):
@@ -174,6 +173,7 @@ def run_container(
 ) -> None:
     container = client.containers.run( # type: ignore
         image=image,
+        name=f"{NAME}-{image.replace('/', '-').replace(':', '-')}",
         detach=True,
         remove=True,
         mem_limit=memory_limit,
@@ -218,10 +218,7 @@ def process_submission_workflow() -> bool:
         print(f"Error while initializing worker files: {e}")
         return True
         
-    logger = get_logger("worker_submission_proccessing_workflow", os.path.join(logs_local_path, "worker.log"), False)
-
-    logger.info(f"{Ansi.BOLD.value}{NAME}{Ansi.RESET.value} is starting submission processing workflow.")
-    logger.info(f"Worker files initialized successfully.")
+    logger = get_logger("worker_submission_proccessing_workflow", os.path.join(logs_local_path, "worker.log"), True)
 
 
 
@@ -235,9 +232,12 @@ def process_submission_workflow() -> bool:
         return True
 
     if submission is None:
-        logger.info("No submission fetched.")
+        # logger.info("No submission fetched.")
         return True
     
+
+    logger.info(f"{Ansi.BOLD.value}{NAME}{Ansi.RESET.value} is starting submission processing workflow.")
+    logger.info(f"Worker files initialized successfully.")
     logger.info(f"Fetched submission {submission.id} for problem {submission.problem_specification.id} by {submission.submitted_by}")
 
 

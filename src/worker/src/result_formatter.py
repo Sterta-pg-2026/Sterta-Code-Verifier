@@ -19,28 +19,31 @@ info=All tests passed
     
 def get_info_formatted(result: SubmissionResultSchema) -> str:
     score = get_result_score(result)
+    border_color = "#202020"
+    border_radius = "4px"
+    max_width = "250px"
     info_content = \
 f"""
 <style>
 
     table {{ 
         border-collapse: collapse; 
-        border: 1px solid #202020;
-        border-radius: 5px; 
+        border: 1px solid {border_color};
+        border-radius: {border_radius}; 
         overflow: hidden;
     }}
     th {{ 
-        border: 1px solid #202020; 
+        border: 1px solid {border_color}; 
         padding: 3px 10px; 
         background-color: #d8d8d8; 
-        max-width: 350px;
+        max-width: {max_width};
         text-align: center;
     }}
     td {{
-        border-left: 1px solid #202020; 
-        border-right: 1px solid #202020; 
+        border-left: 1px solid {border_color}; 
+        border-right: 1px solid {border_color}; 
         padding: 3px 10px; 
-        max-width: 350px;
+        max-width: {max_width};
         white-space: nowrap;
         overflow: hidden;
         text-align: right;
@@ -48,9 +51,9 @@ f"""
     tr:hover td {{
     }}
     tbody tr:nth-child(even) {{ filter: brightness(90%); }}
-    .success {{ background-color: #6fb65d; }}
-    .failure {{ background-color: #b65d62; }}
-    .eerror {{ background-color: #e69c53; }}
+    .success {{ background-color: rgb(109, 156, 109); }}
+    .failure {{ background-color: rgb(164, 84, 88); }}
+    .eerror {{ background-color: rgb(207, 140, 75); }}
 
 </style>
 <b>Score:</b> {score:.2f}%
@@ -60,7 +63,7 @@ f"""
     if len(result.test_results) != 0:
         info_content += \
 f"""
-<div style="background-color: #202020; border-radius: 5px; width: fit-content;">
+<div style="background-color: {border_color}; border-radius: {border_radius}; width: fit-content;">
     <table>
         <tr>
             <th>Name</th>
