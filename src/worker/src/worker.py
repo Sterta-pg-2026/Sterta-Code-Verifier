@@ -14,18 +14,18 @@ from typing import Dict, List, Optional
 from common.schemas import ProblemSpecificationSchema, SubmissionResultSchema, TestResultSchema, VolumeMappingSchema
 
 
-FETCH_TIMEOUT = (5, 15)  # seconds
 POOLING_INTERVAL = 1000e-3  # seconds
-CONTAINERS_TIMEOUT = 300
+FETCH_TIMEOUT = (5, 15)  # seconds
 INFO_LENGTH_LIMIT = 2*5000
+CONTAINERS_TIMEOUT = 300
 CONTAINERS_FILE_SIZE_LIMIT = "5g"
 CONTAINERS_MEMORY_LIMIT = "512m"
 HOSTNAME = os.environ['HOSTNAME']
 NAME: str =  docker.from_env().containers.get(HOSTNAME).name or HOSTNAME
-# HISTORY_LOCAL_PATH = os.path.join(os.environ["WORKERS_HISTORY_LOCAL_PATH"], NAME)
 DATA_LOCAL_PATH = os.path.join(os.environ["WORKERS_DATA_LOCAL_PATH"], NAME)
 DATA_HOST_PATH = os.path.join(os.environ["WORKERS_DATA_HOST_PATH"], NAME)
 
+IS_LOGS_IN_RESULT_ENABLED = "true"
 IS_DEBUG_MODE_ENABLED = os.environ.get("IS_DEBUG_MODE_ENABLED", "false").lower() == "true"
 EXEC_IMAGE: str = os.environ["EXEC_IMAGE_NAME"]
 JUDGE_IMAGE: str = os.environ["JUDGE_IMAGE_NAME"]
@@ -39,9 +39,10 @@ def mainloop() -> None:
     signal.signal(signal.SIGINT, handle_signal)
     signal.signal(signal.SIGTERM, handle_signal)
     while True:
-        should_wait = execute_submission_pipeline()
+        should_wait = process_submission_workflow()
         if should_wait:
             time.sleep(POOLING_INTERVAL)
+
 
 def fetch_compilation_info(path: str) -> Optional[str]:
     comp_file_path = os.path.join(path, "comp.txt")
@@ -57,6 +58,7 @@ def fetch_compilation_info(path: str) -> Optional[str]:
         return None
     return content if content else None
 
+
 def fetch_debug_logs(log_path: Optional[str]) -> Optional[str]:
     try:
         if log_path and os.path.exists(log_path):
@@ -71,9 +73,13 @@ def fetch_debug_logs(log_path: Optional[str]) -> Optional[str]:
     except Exception:
         return None
 
+
 def get_results(path: str) -> SubmissionResultSchema:
-    submission_result = SubmissionResultSchema()
-    submission_result.info = fetch_compilation_info(path)
+    result = SubmissionResultSchema()
+    try:
+        result.info = fetch_compilation_info(path)
+    except Exception:
+        result.info = "No compilation info available."
 
     points = 0
     test_names: List[str] = []
@@ -83,36 +89,40 @@ def get_results(path: str) -> SubmissionResultSchema:
 
     test_names = natsorted(test_names) # type: ignore
     for test_name in test_names:
-        exec_file_path = os.path.join(path, f"{test_name}.exec.json")
-        judge_file_path = os.path.join(path, f"{test_name}.judge.json")
-        test_result: TestResultSchema = TestResultSchema(test_name=test_name)
-
-        with open(exec_file_path, "r") as exec_file:
-            exec = json.load(exec_file)
-            test_result.ret_code = exec["return_code"]
-            test_result.time = float(exec["user_time"])
-            test_result.memory = float(exec["memory"])
-
-        with open(judge_file_path, "r") as judge_file:
-            judge = json.load(judge_file)
-            test_result.grade = True if judge["grade"] == 1 else False
-            test_result.info = judge["info"]
-            if judge["grade"]:
-                points += 1
-
-        submission_result.test_results.append(test_result)
-
-    submission_result.points = points
-    return submission_result
-
-def report_result(submission_id: str, result: Optional[SubmissionResultSchema]) -> None:
-    if result is None:
-        result = SubmissionResultSchema()
         try:
-            result.info = fetch_compilation_info(os.path.join(DATA_LOCAL_PATH, "out"))
+            exec_file_path = os.path.join(path, f"{test_name}.exec.json")
+            judge_file_path = os.path.join(path, f"{test_name}.judge.json")
+            test_result: TestResultSchema = TestResultSchema(test_name=test_name)
+
+            with open(exec_file_path, "r") as exec_file:
+                exec = json.load(exec_file)
+                test_result.ret_code = exec["return_code"]
+                test_result.time = float(exec["user_time"])
+                test_result.memory = float(exec["memory"])
+
+            with open(judge_file_path, "r") as judge_file:
+                judge = json.load(judge_file)
+                test_result.grade = True if judge["grade"] == 1 else False
+                test_result.info = judge["info"]
+                if judge["grade"]:
+                    points += 1
+
+            result.test_results.append(test_result)
         except Exception:
-            result.info = "Error while running submission"    
-    adapter.report_result(submission_id, result)
+            test_result = TestResultSchema(test_name=test_name, grade=False, info="Error while running test.")
+            result.test_results.append(test_result)
+
+
+    result.points = points
+    try:
+        result.info = fetch_compilation_info(path)
+    except Exception:
+        result.info = "Error while running submission."
+        print("Error while fetching compilation info.")
+
+    return result
+
+
 
 def init_worker_files() -> None:
     os.umask(0)
@@ -128,6 +138,7 @@ def init_worker_files() -> None:
     os.makedirs(os.path.join(DATA_LOCAL_PATH, "logs"))
     os.makedirs(os.path.join(DATA_LOCAL_PATH, "tests"))
 
+
 def archive_worker_files() -> None:
     os.umask(0)
     history_local_path = f"{DATA_LOCAL_PATH}_debug"
@@ -136,6 +147,7 @@ def archive_worker_files() -> None:
 
     backup_path = os.path.join(history_local_path)
     shutil.copytree(DATA_LOCAL_PATH, backup_path)
+
 
 def save_problem_specification(
     problem_specification: Optional[ProblemSpecificationSchema], 
@@ -146,6 +158,7 @@ def save_problem_specification(
         problem_specification_local_path = os.path.join(destination_directory, name)
         with open(problem_specification_local_path, "w") as f:
             json.dump(problem_specification.model_dump(), f)
+
 
 def run_container(
     client: docker.DockerClient,
@@ -173,7 +186,8 @@ def run_container(
     )
     container.wait(timeout=timeout)
 
-def execute_submission_pipeline() -> bool:
+
+def process_submission_workflow() -> bool:
     submission_local_path: str = os.path.join(DATA_LOCAL_PATH, "src")
     problem_local_path: str = os.path.join(DATA_LOCAL_PATH, "tests")
     lib_local_path: str = os.path.join(DATA_LOCAL_PATH, "lib")
@@ -352,12 +366,15 @@ def execute_submission_pipeline() -> bool:
     except Exception as e:
         logger.error(f"Error while getting results: {e}")
         return True
+    
 
     logger.info(f"Containers finished for submission {submission.id}")
     logger.info(f"Result for submission {submission.id}: \n\n{result}\n")
     logger.info(f"{Ansi.BOLD.value}{NAME}{Ansi.RESET.value} has finished processing submission {submission.id}.")
-    if result:
+    try:
         result.debug = fetch_debug_logs(os.path.join(logs_local_path, "worker.log"))
+    except Exception:
+        pass
 
 
 
@@ -365,7 +382,7 @@ def execute_submission_pipeline() -> bool:
     # * 10. Report result
     # * ----------------------------------
     try:
-        report_result(submission.id, result)
+        adapter.report_result(submission.id, result)
     except Exception as e:
         print(f"Error while reporting result: {e}")
 

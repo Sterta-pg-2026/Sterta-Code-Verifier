@@ -34,6 +34,7 @@ f"""
         padding: 3px 10px; 
         background-color: #d8d8d8; 
         max-width: 350px;
+        text-align: center;
     }}
     td {{
         border-left: 1px solid #202020; 
@@ -42,6 +43,7 @@ f"""
         max-width: 350px;
         white-space: nowrap;
         overflow: hidden;
+        text-align: right;
     }}
     tr:hover td {{
     }}
@@ -61,13 +63,13 @@ f"""
 <div style="background-color: #202020; border-radius: 5px; width: fit-content;">
     <table>
         <tr>
-            <th>Test Name</th>
-            <th>Return Code</th>
+            <th>Name</th>
             <th>Time [s]</th>
-            <th>Maxrss [kB]</th>
+            <th>Maxrss [KiB]</th>
+            <th>Code</th>
             <th>Info</th>
         </tr>
-        {''.join(f"<tr class='{'success' if test.grade else ('failure' if test.ret_code >= 0 else 'eerror')}'><td>{test.test_name}</td><td>{test.ret_code if test.ret_code >= 0 else ''}</td><td>{test.time:.2f}</td><td>{test.memory/1024:.0f}</td><td>{test.info}</td></tr>" for test in result.test_results)}
+        {''.join(f"<tr class='{'success' if test.grade else ('failure' if (test.ret_code is None or test.ret_code >= 0) else 'eerror')}'><td>{test.test_name}</td><td>{test.time:.2f}</td><td>{(test.memory or 0)/1024:.0f}</td><td>{test.ret_code if (test.ret_code is not None and test.ret_code >= 0) else ''}</td><td>{test.info}</td></tr>" for test in result.test_results)}
     </table>
 </div>
 """

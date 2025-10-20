@@ -1,14 +1,15 @@
 import requests
+import common.utils
 from urllib.parse import urljoin
 from typing import Any, Dict, List, Optional
-from common.utils import is_valid_destination_file_path
-from common.schemas import StosGuiResultSchema, SubmissionGuiSchema, Timeout
+from common.schemas import SubmissionGuiSchema
+from common.tuples import StosGuiResultSchema, Timeout
 
 
 FSAPI_ENDPOINT = "fsapi/fsctrl.php"
 QAPI_ENDPOINT = "qapi/qctrl.php"
 RESULT_ENDPOINT = "io-result.php"
-MAX_FILE_SIZE = 1024 * 1024 * 1024 # 1 GB
+MAX_FILE_SIZE = 1024 * 1024 * 1024 # 1 GiB
 
 def post_result(submission_id: str, result: StosGuiResultSchema, gui_url: str, timeout: Timeout) -> str:
     res_url: str = urljoin(gui_url, RESULT_ENDPOINT)
@@ -61,7 +62,7 @@ def get_file(file_name: str, problem_id: str, destination_file_path: str, gui_ur
     }
 
     # validate destination path
-    if not is_valid_destination_file_path(destination_file_path):
+    if not common.utils.is_valid_destination_file_path(destination_file_path):
         raise ValueError(f"Invalid destination path: {destination_file_path}")
 
     # sending GET request to the fsapi endpoint
@@ -85,7 +86,7 @@ def get_submission(queue_name: str, destination_file_path: str, gui_url: str, ti
     }
 
     # validate destination path
-    if not is_valid_destination_file_path(destination_file_path):
+    if not common.utils.is_valid_destination_file_path(destination_file_path):
         raise ValueError(f"Invalid destination path: {destination_file_path}")
 
 

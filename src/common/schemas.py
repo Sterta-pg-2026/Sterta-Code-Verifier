@@ -1,25 +1,19 @@
 from pydantic import BaseModel
-from typing import Dict, List, NamedTuple, Optional
+from typing import Dict, List, Optional
 
 from common.utils import size_to_string
 
-class Timeout(NamedTuple):
-    connect: float
-    read: float
 
-class StosGuiResultSchema(NamedTuple):
-    result: str
-    info: str
-    debug: str
 
 class TestResultSchema(BaseModel):
     test_name: str = ""
     grade: bool = False
-    ret_code: int = 0
-    time: float = 0
-    memory: float = 0
-    info: str = ""
- 
+    ret_code: Optional[int] = None
+    time: Optional[float] = None
+    memory: Optional[float] = None
+    info: Optional[str] = None
+
+
 
 class SubmissionResultSchema(BaseModel):
     points: int = 0
@@ -40,7 +34,10 @@ class SubmissionResultSchema(BaseModel):
                 if result.ret_code != 0:
                     color = 173
                 ret += f"|\033[48;5;{color}m\033[38;5;232m {result.test_name:>4} | "
-                ret += f"{result.time:.2f} | {size_to_string(result.memory):>10} | {result.ret_code:>3} \033[0m| {result.info[:1000]}\n"
+                if result.time is None or result.memory is None or result.ret_code is None or result.info is None:
+                    ret += f"     |            |     |\n"
+                else:
+                    ret += f"{result.time:.2f} | {size_to_string(result.memory):>10} | {result.ret_code:>3} \033[0m| {result.info[:1000]}\n"
             ret += "+------+------+------------+-----+\n"
             ret += "| " + f"points: {self.points}".center(30) + " |\n"
             ret += "+--------------------------------+"
@@ -53,11 +50,13 @@ class SubmissionResultSchema(BaseModel):
         return ret
 
 
+
 class TestSpecificationSchema(BaseModel):
     test_name: str = ""
     time_limit: float = 2
     total_memory_limit: int = 256*1024*1024  # 256 MB
     stack_size_limit: Optional[int] = None
+
 
 
 class ProblemSpecificationSchema(BaseModel):
@@ -79,6 +78,7 @@ class ProblemSpecificationSchema(BaseModel):
         return ret
 
 
+
 class SubmissionSchema(BaseModel):
     id: str
     comp_image: str
@@ -87,10 +87,12 @@ class SubmissionSchema(BaseModel):
     problem_specification: ProblemSpecificationSchema
     
 
+
 class SubmissionGuiSchema(BaseModel):
     submission_id: str
     problem_id: str
     student_id: str
+
 
 
 class VolumeMappingSchema(BaseModel):

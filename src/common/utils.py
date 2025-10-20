@@ -5,7 +5,7 @@ def size_to_string(value: float) -> str:
     if value < 0:
         raise ValueError("Size must be non-negative")
 
-    units = ["B", "KB", "MB", "GB", "TB"]
+    units = ["B", "KiB", "MiB", "GiB", "TiB"]
     index = 0
     while value >= 1024 and index < len(units) - 1:
         value /= 1024.0

@@ -2,12 +2,13 @@ import os
 import json
 import shutil
 import zipfile
-from common.utils import is_valid_destination_directory_path
-import script_parser as script_parser 
-import result_formatter as result_formatter
+import common.utils
 from typing import Dict, Optional
-from common.schemas import ProblemSpecificationSchema, StosGuiResultSchema, SubmissionSchema, SubmissionResultSchema, Timeout
+import script_parser as script_parser 
 import stos_gui_api_client as gui_client
+import result_formatter as result_formatter
+from common.tuples import Timeout, StosGuiResultSchema
+from common.schemas import ProblemSpecificationSchema, SubmissionSchema, SubmissionResultSchema
 
 
 TIMEOUT = Timeout(5, 10) # FETCH_TIMEOUT 
@@ -20,7 +21,7 @@ def fetch_submission(destination_directory: str) -> Optional[SubmissionSchema]:
     submission_temp_zip_path = os.path.join(submission_workspace, "src.zip")
 
     # validate destination path
-    if not is_valid_destination_directory_path(destination_directory):
+    if not common.utils.is_valid_destination_directory_path(destination_directory):
         raise ValueError(f"Invalid destination path: {destination_directory}")
 
 
@@ -36,7 +37,7 @@ def fetch_submission(destination_directory: str) -> Optional[SubmissionSchema]:
         try:
             response = gui_client.get_submission(queue_name, submission_temp_zip_path, GUI_URL, TIMEOUT)
         except Exception as e:
-            print(f"An error occurred while fetching the submission from {queue_name}: {e}")
+            print(f"An error occurred while fetching the submission from {queue_name}: {e} continuing to next queue...")
             continue
         if response is None:
             continue
@@ -56,10 +57,11 @@ def fetch_submission(destination_directory: str) -> Optional[SubmissionSchema]:
             if file_list:
                 submission.mainfile = file_list[0].filename
             zf.extractall(destination_directory)
-       
         return submission
-
+    
     return None
+
+
 
 def report_result(submission_id: str, result: SubmissionResultSchema) -> None:
     guiResult = StosGuiResultSchema(
@@ -67,12 +69,11 @@ def report_result(submission_id: str, result: SubmissionResultSchema) -> None:
         info=result_formatter.get_info_formatted(result),
         debug=result_formatter.get_debug_formatted(result)
     )
-    
-    msg = gui_client.post_result(submission_id, guiResult, GUI_URL, TIMEOUT)
-    print(f"Reported result for submission {submission_id} with score {result_formatter.get_result_score(result)}, response: {msg}")     
+    gui_client.post_result(submission_id, guiResult, GUI_URL, TIMEOUT)
+
+
 
 def fetch_problem(problem_id: str, destination_directory: str, lib_destination_directory: Optional[str]=None) -> ProblemSpecificationSchema:
-
     # initializing workspace
     problem_workspace = f'/tmp/problem'
     tmp_script_path = os.path.join(problem_workspace, "script.txt")
