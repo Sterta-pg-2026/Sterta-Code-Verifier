@@ -2,6 +2,22 @@ import os
 
 
 def size_to_string(value: float) -> str:
+    """
+    Convert a size in bytes to a human-readable string representation.
+    
+    Converts a numeric byte value to a formatted string using appropriate
+    binary units (B, KiB, MiB, GiB, TiB). The value is automatically scaled
+    to the most suitable unit.
+    
+    Args:
+        value: Size in bytes to convert
+        
+    Returns:
+        Formatted string with the size and appropriate unit (e.g., "1.50 MiB")
+        
+    Raises:
+        ValueError: If the value is negative
+    """
     if value < 0:
         raise ValueError("Size must be non-negative")
 
@@ -15,6 +31,19 @@ def size_to_string(value: float) -> str:
 
 
 def is_valid_destination_file_path(destination_file_path: str) -> bool:
+    """
+    Validate that a file path is suitable for writing.
+    
+    Checks if the provided path can be used as a destination for writing
+    a file. Validates that the parent directory exists, has write permissions,
+    and that the path itself is not a directory.
+    
+    Args:
+        destination_file_path: Path to validate for file writing
+        
+    Returns:
+        True if the path is valid for writing a file, False otherwise
+    """
     if not destination_file_path or destination_file_path.isspace():
         return False
 
@@ -36,6 +65,18 @@ def is_valid_destination_file_path(destination_file_path: str) -> bool:
     return True
 
 def is_valid_destination_directory_path(destination_directory_path: str) -> bool:
+    """
+    Validate that a directory path exists and is writable.
+    
+    Checks if the provided path points to an existing directory with
+    write permissions, making it suitable for writing files into.
+    
+    Args:
+        destination_directory_path: Directory path to validate
+        
+    Returns:
+        True if the path is a valid writable directory, False otherwise
+    """
     if not destination_directory_path or destination_directory_path.isspace():
         return False
 
