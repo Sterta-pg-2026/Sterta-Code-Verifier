@@ -11,12 +11,11 @@ from common.enums import Ansi
 from logger import get_logger
 from docker.types import Ulimit
 from typing import Dict, List, Optional
-from common.schemas import ProblemSpecificationSchema, SubmissionResultSchema, TestResultSchema, VolumeMappingSchema
+from common.schemas import ExecOutputSchema, JudgeOutputSchema, ProblemSpecificationSchema, SubmissionResultSchema, TestResultSchema, VolumeMappingSchema
 
 
 POOLING_INTERVAL = 1000e-3  # seconds
 FETCH_TIMEOUT = (5, 15)  # seconds
-INFO_LENGTH_LIMIT = 2*5000
 CONTAINERS_TIMEOUT = 250  # seconds
 CONTAINERS_FILE_SIZE_LIMIT = "5g"
 CONTAINERS_MEMORY_LIMIT = "512m"
@@ -48,28 +47,14 @@ def mainloop() -> None:
             time.sleep(POOLING_INTERVAL)
 
 
-def fetch_compilation_info(path: str) -> Optional[str]:
-    comp_file_path = os.path.join(path, "comp.txt")
-    try:
-        with open(comp_file_path, "r", encoding="utf-8", errors="ignore") as f:
-            content = ""
-            for line in f:
-                if len(content) + len(line) > INFO_LENGTH_LIMIT:
-                    break
-                content += line
-           
-    except Exception:
-        return None
-    return content if content else None
-
-
 def fetch_debug_logs(log_path: Optional[str]) -> Optional[str]:
+    maximum_content_length = 2*5000
     try:
         if log_path and os.path.exists(log_path):
             with open(log_path, "r", encoding="utf-8", errors="ignore") as log_file:
                 content = ""
                 for line in log_file:
-                    if len(content) + len(line) > INFO_LENGTH_LIMIT*2:
+                    if len(content) + len(line) > maximum_content_length * 2:
                         print("Log file too long, truncating...")
                         break
                     content += line
@@ -79,12 +64,23 @@ def fetch_debug_logs(log_path: Optional[str]) -> Optional[str]:
 
 
 def get_results(path: str) -> SubmissionResultSchema:
-    result = SubmissionResultSchema()
-    try:
-        result.info = fetch_compilation_info(path)
-    except Exception:
-        result.info = "No compilation info available."
+    def fetch_compilation_info(path: str) -> Optional[str]:
+        maximum_content_length = 2*5000
+        comp_file_path = os.path.join(path, "comp.txt")
+        try:
+            with open(comp_file_path, "r", encoding="utf-8", errors="ignore") as f:
+                content = ""
+                for line in f:
+                    if len(content) + len(line) > maximum_content_length:
+                        break
+                    content += line
+            
+        except Exception:
+            return None
+        return content if content else None
 
+
+    result = SubmissionResultSchema()
     points = 0
     test_names: List[str] = []
     for file in os.listdir(path):
@@ -99,16 +95,16 @@ def get_results(path: str) -> SubmissionResultSchema:
             test_result: TestResultSchema = TestResultSchema(test_name=test_name)
 
             with open(exec_file_path, "r") as exec_file:
-                exec = json.load(exec_file)
-                test_result.ret_code = exec["return_code"]
-                test_result.time = float(exec["user_time"])
-                test_result.memory = float(exec["memory"])
+                exec_output = ExecOutputSchema.model_validate_json(json_data=exec_file.read())
+                test_result.ret_code = exec_output.return_code
+                test_result.time = exec_output.user_time
+                test_result.memory = exec_output.total_memory
 
             with open(judge_file_path, "r") as judge_file:
-                judge = json.load(judge_file)
-                test_result.grade = True if judge["grade"] == 1 else False
-                test_result.info = judge["info"]
-                if judge["grade"]:
+                judge_output = JudgeOutputSchema.model_validate_json(json_data=judge_file.read())
+                test_result.grade = judge_output.grade
+                test_result.info = judge_output.info
+                if judge_output.grade:
                     points += 1
 
             result.test_results.append(test_result)
@@ -177,7 +173,7 @@ def run_container(
         detach=True,
         remove=True,
         mem_limit=memory_limit,
-        pids_limit=50,
+        pids_limit=50, 
         ulimits=[
             Ulimit(name="fsize", soft=5 * 1024**3, hard=5 * 1024**3),
             Ulimit(name="nofile", soft=1024, hard=4096),
