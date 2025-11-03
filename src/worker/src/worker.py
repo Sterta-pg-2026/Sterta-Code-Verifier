@@ -109,7 +109,7 @@ def get_results(path: str) -> SubmissionResultSchema:
 
             result.test_results.append(test_result)
         except Exception:
-            test_result = TestResultSchema(test_name=test_name, grade=False, info="Error while running test.")
+            test_result = TestResultSchema(test_name=test_name, grade=False, info="error while running test")
             result.test_results.append(test_result)
 
 
@@ -169,7 +169,7 @@ def run_container(
 ) -> None:
     container = client.containers.run( # type: ignore
         image=image,
-        name=f"{NAME}-{image.replace('/', '-').replace(':', '-')}",
+        name=f"{NAME}-{image.replace('/', '-').replace(':', '-')}-{int(time.time())}",
         detach=True,
         remove=True,
         mem_limit=memory_limit,
@@ -339,17 +339,19 @@ def process_submission_workflow() -> bool:
         run_container(
             client=client,
             image=JUDGE_IMAGE,
-            volume_mappings=[
-                VolumeMappingSchema(host_path=problem_host_path, container_path="/data/ans"),
-                VolumeMappingSchema(host_path=artifacts_std_host_path, container_path="/data/in"),
-                VolumeMappingSchema(host_path=artifacts_out_host_path, container_path="/data/out", read_only=False),
-            ],
             environment={
                 "LOGS": "off",
                 "IN": "/data/in",
                 "OUT": "/data/out",
                 "ANS": "/data/ans",
+                "CONF": "/data/conf",
             },
+            volume_mappings=[
+                VolumeMappingSchema(host_path=problem_host_path, container_path="/data/ans"),
+                VolumeMappingSchema(host_path=conf_host_path, container_path="/data/conf"),
+                VolumeMappingSchema(host_path=artifacts_std_host_path, container_path="/data/in"),
+                VolumeMappingSchema(host_path=artifacts_out_host_path, container_path="/data/out", read_only=False),
+            ],
         )
     except Exception as e:
         logger.error(f"Error while running judge container: {e}")

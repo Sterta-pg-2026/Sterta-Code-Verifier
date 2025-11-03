@@ -1,8 +1,8 @@
 import ansi2html
-from common.schemas import SubmissionResultSchema
+from common.schemas import SubmissionResultSchema, TestResultSchema
 
 def get_result_score(result: SubmissionResultSchema) -> float:
-    return 100*result.points / len(result.test_results) if len(result.test_results) > 0 else 0
+    return (100*result.points / len(result.test_results)) if len(result.test_results) > 0 else 0
 
 
 def get_result_formatted(result: SubmissionResultSchema) -> str:
@@ -18,6 +18,18 @@ info=All tests passed
     
     
 def get_info_formatted(result: SubmissionResultSchema) -> str:
+    def trow_from_test(test: TestResultSchema) -> str:
+        css_class = "failure"
+        if test.ret_code or 0 < 0:
+            css_class = "eerror"
+        elif test.grade:
+            css_class = "success"
+        name = test.test_name
+        info = test.info or ""
+        if test.time is None or test.memory is None or test.ret_code is None:
+            return f"<tr class='{css_class}'><td>{name}</td><td></td><td></td><td></td><td></td></tr>"
+        return f"<tr class='{css_class}'><td>{name}</td><td>{test.time:.2f}</td><td>{test.memory/1024:.0f}</td><td>{test.ret_code}</td><td>{info}</td></tr>"
+
     score = get_result_score(result)
     border_color = "#202020"
     border_radius = "4px"
@@ -61,6 +73,7 @@ f"""
 <br>
 """
     if len(result.test_results) != 0:
+
         info_content += \
 f"""
 <div style="background-color: {border_color}; border-radius: {border_radius}; width: fit-content;">
@@ -72,7 +85,7 @@ f"""
             <th>Code</th>
             <th>Info</th>
         </tr>
-        {''.join(f"<tr class='{'success' if test.grade else ('failure' if (test.ret_code is None or test.ret_code >= 0) else 'eerror')}'><td>{test.test_name}</td><td>{test.time:.2f}</td><td>{(test.memory or 0)/1024:.0f}</td><td>{test.ret_code if (test.ret_code is not None and test.ret_code >= 0) else ''}</td><td>{test.info}</td></tr>" for test in result.test_results)}
+        {''.join(trow_from_test(test) for test in result.test_results)}
     </table>
 </div>
 """
