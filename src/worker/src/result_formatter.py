@@ -72,7 +72,7 @@ def get_info_formatted(result: SubmissionResultSchema) -> str:
             css_class = "success"
         name = test.test_name
         info = test.info or ""
-        if test.time is None or test.memory is None or test.ret_code is None:
+        if test.time is None or test.memory is None or test.memory == 0 or test.ret_code is None:
             return f"<tr class='{css_class}'><td>{name}</td><td></td><td></td><td></td><td></td></tr>"
         return f"<tr class='{css_class}'><td>{name}</td><td>{test.time:.2f}</td><td>{test.memory/1024:.0f}</td><td>{test.ret_code}</td><td>{info}</td></tr>"
 
