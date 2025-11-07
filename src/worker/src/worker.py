@@ -322,7 +322,7 @@ def process_submission_workflow() -> bool:
         return True
 
     logger = get_logger(
-        "worker_submission_proccessing_workflow",
+        "worker_submission_processing_workflow",
         os.path.join(logs_local_path, "worker.log"),
         True,
     )
