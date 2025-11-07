@@ -224,6 +224,22 @@ def get_submission(
 
 
 def notify(submission_id: str, message: str, gui_url: str, timeout: Timeout) -> None:
+    """Send a notification message for a specific submission.
+
+    Sends a notification message to the STOS GUI queue API for a given submission.
+
+    Args:
+        submission_id (str): Unique identifier of the submission.
+        message (str): Notification message to send.
+        gui_url (str): Base URL of the STOS GUI.
+        timeout (Timeout): Request timeout configuration.
+    
+    Returns:
+        None
+    
+    Raises:
+        requests.HTTPError: If the HTTP request fails.
+    """
     qapi_url: str = urljoin(gui_url, QAPI_ENDPOINT)
     params: Dict[str, str] = {"f": "notify", "id": submission_id}
     data: Dict[str, str] = {"id": submission_id, "info": message}
