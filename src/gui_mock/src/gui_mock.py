@@ -6,9 +6,9 @@ import os
 
 
 # SKIP = 192
-SKIP = 0
-LIMIT = 10
-SET = 358
+SKIP = 300
+LIMIT = 100
+SET = 1
 SUBMISSIONS = f"test_files/submissions-{SET}"
 TESTS = f"test_files/tests-{SET}"
 QUEUE = "stos2025"
@@ -40,7 +40,7 @@ async def results_page(request: Request):
     grouped: dict[str, list[str]] = {}
     for f in files:
         if "_" in f:
-            sid = f.split("_", 1)[0]
+            sid = "_".join(f.split("_", 3)[0:3])
         else:
             sid = "unknown"
         grouped.setdefault(sid, []).append(f)

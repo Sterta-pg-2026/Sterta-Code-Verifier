@@ -20,12 +20,11 @@ from common.enums import Ansi
 from logger import get_logger
 from docker.types import Ulimit
 from typing import Dict, List, Optional
-from common.schemas import ProblemSpecificationSchema, SubmissionResultSchema, TestResultSchema, VolumeMappingSchema
+from common.schemas import ExecOutputSchema, JudgeOutputSchema, ProblemSpecificationSchema, SubmissionResultSchema, TestResultSchema, VolumeMappingSchema
 
 
 POOLING_INTERVAL = 1000e-3  # seconds
 FETCH_TIMEOUT = (5, 15)  # seconds
-INFO_LENGTH_LIMIT = 2*5000
 CONTAINERS_TIMEOUT = 250  # seconds
 CONTAINERS_FILE_SIZE_LIMIT = "5g"
 CONTAINERS_MEMORY_LIMIT = "512m"
@@ -74,29 +73,6 @@ def mainloop() -> None:
             time.sleep(POOLING_INTERVAL)
 
 
-def fetch_compilation_info(path: str) -> Optional[str]:
-    """Fetch compilation information from the specified path.
-    
-    Args:
-        path (str): Path to the directory containing test results and compilation file.
-    
-    Returns:
-        Optional[str]: Compilation information or None if file doesn't exist or error occurred.
-    """
-    comp_file_path = os.path.join(path, "comp.txt")
-    try:
-        with open(comp_file_path, "r", encoding="utf-8", errors="ignore") as f:
-            content = ""
-            for line in f:
-                if len(content) + len(line) > INFO_LENGTH_LIMIT:
-                    break
-                content += line
-           
-    except Exception:
-        return None
-    return content if content else None
-
-
 def fetch_debug_logs(log_path: Optional[str]) -> Optional[str]:
     """Fetch debug logs from the specified path.
     
@@ -106,12 +82,13 @@ def fetch_debug_logs(log_path: Optional[str]) -> Optional[str]:
     Returns:
         Optional[str]: Log content or None if file doesn't exist or error occurred.
     """
+    maximum_content_length = 2*5000
     try:
         if log_path and os.path.exists(log_path):
             with open(log_path, "r", encoding="utf-8", errors="ignore") as log_file:
                 content = ""
                 for line in log_file:
-                    if len(content) + len(line) > INFO_LENGTH_LIMIT*2:
+                    if len(content) + len(line) > maximum_content_length * 2:
                         print("Log file too long, truncating...")
                         break
                     content += line
@@ -129,12 +106,23 @@ def get_results(path: str) -> SubmissionResultSchema:
     Returns:
         SubmissionResultSchema: Object containing test results, compilation info and points.
     """
-    result = SubmissionResultSchema()
-    try:
-        result.info = fetch_compilation_info(path)
-    except Exception:
-        result.info = "No compilation info available."
+    def fetch_compilation_info(path: str) -> Optional[str]:
+        maximum_content_length = 2*5000
+        comp_file_path = os.path.join(path, "comp.txt")
+        try:
+            with open(comp_file_path, "r", encoding="utf-8", errors="ignore") as f:
+                content = ""
+                for line in f:
+                    if len(content) + len(line) > maximum_content_length:
+                        break
+                    content += line
+            
+        except Exception:
+            return None
+        return content if content else None
 
+
+    result = SubmissionResultSchema()
     points = 0
     test_names: List[str] = []
     for file in os.listdir(path):
@@ -149,21 +137,21 @@ def get_results(path: str) -> SubmissionResultSchema:
             test_result: TestResultSchema = TestResultSchema(test_name=test_name)
 
             with open(exec_file_path, "r") as exec_file:
-                exec = json.load(exec_file)
-                test_result.ret_code = exec["return_code"]
-                test_result.time = float(exec["user_time"])
-                test_result.memory = float(exec["memory"])
+                exec_output = ExecOutputSchema.model_validate_json(json_data=exec_file.read())
+                test_result.ret_code = exec_output.return_code
+                test_result.time = exec_output.user_time
+                test_result.memory = exec_output.total_memory
 
             with open(judge_file_path, "r") as judge_file:
-                judge = json.load(judge_file)
-                test_result.grade = True if judge["grade"] == 1 else False
-                test_result.info = judge["info"]
-                if judge["grade"]:
+                judge_output = JudgeOutputSchema.model_validate_json(json_data=judge_file.read())
+                test_result.grade = judge_output.grade
+                test_result.info = judge_output.info
+                if judge_output.grade:
                     points += 1
 
             result.test_results.append(test_result)
         except Exception:
-            test_result = TestResultSchema(test_name=test_name, grade=False, info="Error while running test.")
+            test_result = TestResultSchema(test_name=test_name, grade=False, info="error while running test")
             result.test_results.append(test_result)
 
 
@@ -175,7 +163,6 @@ def get_results(path: str) -> SubmissionResultSchema:
         print("Error while fetching compilation info.")
 
     return result
-
 
 
 def init_worker_files() -> None:
@@ -234,7 +221,7 @@ def save_problem_specification(
     Returns:
         None
     """
-     if problem_specification:
+    if problem_specification:
         problem_specification_local_path = os.path.join(destination_directory, name)
         with open(problem_specification_local_path, "w") as f:
             json.dump(problem_specification.model_dump(), f)
@@ -263,10 +250,11 @@ def run_container(
     """
     container = client.containers.run( # type: ignore
         image=image,
+        name=f"{NAME}-{image.replace('/', '-').replace(':', '-')}-{int(time.time())}",
         detach=True,
         remove=True,
         mem_limit=memory_limit,
-        pids_limit=50,
+        pids_limit=50, 
         ulimits=[
             Ulimit(name="fsize", soft=5 * 1024**3, hard=5 * 1024**3),
             Ulimit(name="nofile", soft=1024, hard=4096),
@@ -317,11 +305,7 @@ def process_submission_workflow() -> bool:
         print(f"Error while initializing worker files: {e}")
         return True
         
-    logger = get_logger("worker_submission_proccessing_workflow", os.path.join(logs_local_path, "worker.log"), False)
-
-    logger.info(f"{Ansi.BOLD.value}{NAME}{Ansi.RESET.value} is starting submission processing workflow.")
-    logger.info(f"Worker files initialized successfully.")
-
+    logger = get_logger("worker_submission_proccessing_workflow", os.path.join(logs_local_path, "worker.log"), True)
 
 
     # * ----------------------------------
@@ -334,16 +318,22 @@ def process_submission_workflow() -> bool:
         return True
 
     if submission is None:
-        logger.info("No submission fetched.")
+        # logger.info("No submission fetched.")
         return True
     
+
+    logger.info(f"{Ansi.BOLD.value}{NAME}{Ansi.RESET.value} is starting submission processing workflow.")
+    logger.info(f"Worker files initialized successfully.")
     logger.info(f"Fetched submission {submission.id} for problem {submission.problem_specification.id} by {submission.submitted_by}")
+    adapter.change_status(submission.id, "Processing submission...")
+
 
 
 
     # * ----------------------------------
     # * 3. Fetch problem
     # * ----------------------------------
+    adapter.change_status(submission.id, "Fetching problem...")
     try:
         problem = adapter.fetch_problem(submission.problem_specification.id, problem_local_path, lib_local_path)
         submission.problem_specification = problem
@@ -357,6 +347,7 @@ def process_submission_workflow() -> bool:
     # * ----------------------------------
     # * 4. Save problem specification
     # * ----------------------------------
+    adapter.change_status(submission.id, "Saving problem specification...")
     try:
         save_problem_specification(submission.problem_specification, conf_local_path)
         logger.info(f"Problem specification (script.txt) parsed and saved successfully: \n\n{submission.problem_specification}\n")
@@ -369,6 +360,7 @@ def process_submission_workflow() -> bool:
     # * ----------------------------------
     # * 5. Prepare subcontainer parameters
     # * ----------------------------------
+    adapter.change_status(submission.id, "Preparing compiler container...")
     logger.info(f"Running containers for submission {submission.id} with image {submission.comp_image} and mainfile {submission.mainfile}")
 
 
@@ -376,6 +368,7 @@ def process_submission_workflow() -> bool:
     # * ----------------------------------
     # * 6. Run compiler subcontainer
     # * ----------------------------------
+    adapter.change_status(submission.id, "Compiling...")
     logger.info(f"Running compiler container for submission {submission.id}")
     try: 
         client = docker.from_env()
@@ -405,6 +398,7 @@ def process_submission_workflow() -> bool:
     # * ----------------------------------
     # * 7. Run execution subcontainer
     # * ----------------------------------
+    adapter.change_status(submission.id, "Executing...")
     logger.info(f"Running execution container for submission {submission.id}")
     try:
         client = docker.from_env()
@@ -436,23 +430,26 @@ def process_submission_workflow() -> bool:
     # * ----------------------------------
     # * 8. Run judge subcontainer
     # * ----------------------------------
+    adapter.change_status(submission.id, "Judging...")
     logger.info(f"Running judge container for submission {submission.id}")
     try:
         client = docker.from_env()
         run_container(
             client=client,
             image=JUDGE_IMAGE,
-            volume_mappings=[
-                VolumeMappingSchema(host_path=problem_host_path, container_path="/data/ans"),
-                VolumeMappingSchema(host_path=artifacts_std_host_path, container_path="/data/in"),
-                VolumeMappingSchema(host_path=artifacts_out_host_path, container_path="/data/out", read_only=False),
-            ],
             environment={
                 "LOGS": "off",
                 "IN": "/data/in",
                 "OUT": "/data/out",
                 "ANS": "/data/ans",
+                "CONF": "/data/conf",
             },
+            volume_mappings=[
+                VolumeMappingSchema(host_path=problem_host_path, container_path="/data/ans"),
+                VolumeMappingSchema(host_path=conf_host_path, container_path="/data/conf"),
+                VolumeMappingSchema(host_path=artifacts_std_host_path, container_path="/data/in"),
+                VolumeMappingSchema(host_path=artifacts_out_host_path, container_path="/data/out", read_only=False),
+            ],
         )
     except Exception as e:
         logger.error(f"Error while running judge container: {e}")
@@ -463,6 +460,7 @@ def process_submission_workflow() -> bool:
     # * ----------------------------------
     # * 9. Fetch results
     # * ----------------------------------
+    adapter.change_status(submission.id, "Fetching results...")
     logger.info(f"Fetching results for submission {submission.id}")
     try:
         result: SubmissionResultSchema = get_results(os.path.join(DATA_LOCAL_PATH, "out"))
@@ -484,6 +482,7 @@ def process_submission_workflow() -> bool:
     # * ----------------------------------
     # * 10. Report result
     # * ----------------------------------
+    adapter.change_status(submission.id, "Reporting result...")
     try:
         adapter.report_result(submission.id, result)
     except Exception as e:
