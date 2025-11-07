@@ -211,7 +211,6 @@ class VolumeMappingSchema(BaseModel):
             The host path, used as the key in Docker volume mappings
         """
         return self.host_path
-    
     def value(self) -> Dict[str, str]:
         """
         Get the value dictionary for Docker volume configuration.
