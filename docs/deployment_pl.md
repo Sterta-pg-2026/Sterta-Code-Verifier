@@ -49,4 +49,3 @@ Dodatkowo, należy ustawić wartość `$pliki[""]["mainfile"]` np. w linii 525:
 ```php
 $pliki[""]["mainfile"] = $mainfile;
 ```
-

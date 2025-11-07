@@ -1,11 +1,11 @@
 services:
+  # --- worker ---
   worker:
     image: stos_worker
     restart: always
     build:
       dockerfile: worker/dockerfile
     volumes:
-      # - ${STOS_FILES}/shared:/shared:rw
       - ${STOS_FILES}:/workers:rw
       - ${DOCKER_SOCK}:/var/run/docker.sock:rw
     environment:
@@ -31,3 +31,56 @@ services:
   #     dockerfile: gui_mock/dockerfile
   #   ports:
   #     - "8080:80"
+
+
+
+
+
+  # # --- PROMETHEUS ---
+  # prometheus:
+  #   image: prom/prometheus:latest
+  #   container_name: prometheus
+  #   volumes:
+  #     - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+  #   command:
+  #     - '--config.file=/etc/prometheus/prometheus.yml'
+  #   ports:
+  #     - "9090:9090"
+  #   restart: unless-stopped
+
+  # # --- NODE EXPORTER (monitoring hosta) ---
+  # node_exporter:
+  #   image: prom/node-exporter:latest
+  #   container_name: node_exporter
+  #   ports:
+  #     - "9100:9100"
+  #   restart: unless-stopped
+
+
+  # # --- cADVISOR (monitoring kontenerów) ---
+  # cadvisor:
+  #   image: gcr.io/cadvisor/cadvisor:latest
+  #   container_name: cadvisor
+  #   privileged: true
+  #   volumes:
+  #     - /:/rootfs:ro
+  #     - /var/run:/var/run:ro
+  #     - /sys:/sys:ro
+  #     - /var/lib/docker/:/var/lib/docker:ro
+  #   ports:
+  #     - "8080:8080"
+  #   restart: unless-stopped
+
+
+  # # --- GRAFANA ---
+  # grafana:
+  #   image: grafana/grafana:latest
+  #   container_name: grafana
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     - GF_SECURITY_ADMIN_USER=admin
+  #     - GF_SECURITY_ADMIN_PASSWORD=admin
+  #   depends_on:
+  #     - prometheus
+  #   restart: unless-stopped

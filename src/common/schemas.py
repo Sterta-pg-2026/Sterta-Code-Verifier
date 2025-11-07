@@ -70,7 +70,7 @@ class SubmissionResultSchema(BaseModel):
                     color = 173
                 ret += f"|\033[48;5;{color}m\033[38;5;232m {result.test_name:>4} | "
                 if result.time is None or result.memory is None or result.ret_code is None or result.info is None:
-                    ret += f"     |            |     |\n"
+                    ret += f"     |            |     \033[0m|\n"
                 else:
                     ret += f"{result.time:.2f} | {size_to_string(result.memory):>10} | {result.ret_code:>3} \033[0m| {result.info[:1000]}\n"
             ret += "+------+------+------------+-----+\n"
@@ -227,3 +227,14 @@ class VolumeMappingSchema(BaseModel):
             "mode": "ro" if self.read_only else "rw"
         }
 
+
+class ExecOutputSchema(BaseModel):
+    return_code: int
+    signal: Optional[int] = None
+    user_time: Optional[float] = None
+    total_memory: Optional[int] = None
+
+
+class JudgeOutputSchema(BaseModel):
+    grade: bool = False
+    info: Optional[str] = None
