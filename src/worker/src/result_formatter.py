@@ -66,7 +66,7 @@ def get_info_formatted(result: SubmissionResultSchema) -> str:
 
     def trow_from_test(test: TestResultSchema) -> str:
         css_class = "failure"
-        if test.ret_code or 0 < 0:
+        if (test.ret_code or 0) < 0:
             css_class = "eerror"
         elif test.grade:
             css_class = "success"
