@@ -1,8 +1,31 @@
+"""Script parser module for STOS problem specification processing.
+
+This module provides functionality to parse STOS problem specification scripts
+and extract test configurations, compilation settings, and additional files.
+
+The parser handles various STOS script commands including compilation settings,
+test specifications, judge configurations, and file additions.
+"""
 from typing import Any, Dict, List, Optional, Tuple
 
 from common.schemas import ProblemSpecificationSchema, TestSpecificationSchema
 
 def extract_raw_problem_script(script: str) -> Tuple[Dict[int, Dict[str, Any]], List[str]]:
+    """Extract raw problem script data and parse STOS commands.
+    
+    Parses a STOS problem specification script and extracts test configurations,
+    compilation settings, and additional files. Handles various STOS commands
+    including compilation (C, CU, CO), test specifications (TST), judge settings (J, JUN),
+    and file additions (AH, AS).
+    
+    Args:
+        script (str): The STOS problem specification script to parse.
+    
+    Returns:
+        Tuple[Dict[int, Dict[str, Any]], List[str]]: A tuple containing:
+            - Dictionary mapping test IDs to their configuration dictionaries
+            - List of additional files to be included
+    """
     lines = script.split("\n")
     add_files: List[str] = []
     test_id = 0
@@ -16,12 +39,14 @@ def extract_raw_problem_script(script: str) -> Tuple[Dict[int, Dict[str, Any]], 
         if not cmd: 
             continue
             
+        # Handle compilation command (C)
         if cmd[0].lower() == 'c':
             optimize = False
             for par in cmd:
                 if par == "-O2":
                     optimize = True
                     
+        # Handle compilation with optimization settings (CU, CO, etc.)
         elif cmd[0].lower() in ["cu", "compileu", "co", "compileo"]:
             if cmd[0].lower() in ["co", "compileo"]:
                 optimize = True
@@ -32,6 +57,7 @@ def extract_raw_problem_script(script: str) -> Tuple[Dict[int, Dict[str, Any]], 
                 if cmd[i].startswith("stack="):
                     stack = int(cmd[i][6:])
                     
+        # Handle test specification commands (T, TN, TST)
         elif ((cmd[0].lower() in ['t', 'tn'] and len(cmd) > 1 and cmd[1] == "sandbox.exe") 
               or cmd[0] == "TST" or cmd[0].startswith("TST(")):
             if test_id not in rv:
@@ -84,6 +110,7 @@ def extract_raw_problem_script(script: str) -> Tuple[Dict[int, Dict[str, Any]], 
             last_test = test_id
             test_id += 1
             
+        # Handle judge specification commands (J, JN)
         elif cmd[0].lower() in ['j', 'jn']:
             if len(cmd) > 1:
                 if cmd[1] == "judge":
@@ -104,6 +131,7 @@ def extract_raw_problem_script(script: str) -> Tuple[Dict[int, Dict[str, Any]], 
             if cmd[0].lower() == 'jn':
                 rv[last_test]["group"] = ""
                 
+        # Handle extended judge commands (JUB, JUN)
         elif cmd[0][:3].lower() in ['jub', 'jun']:
             if len(cmd) > 1:
                 if cmd[1] == "judge":
@@ -135,10 +163,12 @@ def extract_raw_problem_script(script: str) -> Tuple[Dict[int, Dict[str, Any]], 
                 except ValueError:
                     pass
                     
+        # Handle additional header files (AH, ADDHDR)
         elif cmd[0].lower() in ["ah", "addhdr"]:
             for i in range(1, len(cmd)):
                 add_files.append(cmd[i])
                 
+        # Handle additional source files (AS, ADDSRC)
         elif cmd[0].lower() in ["as", "addsrc"]:
             for i in range(1, len(cmd)):
                 add_files.append(cmd[i])
@@ -146,6 +176,20 @@ def extract_raw_problem_script(script: str) -> Tuple[Dict[int, Dict[str, Any]], 
     return rv, add_files
 
 def parse_script(script: str, problem_id: str) -> Optional[ProblemSpecificationSchema]:
+    """Parse STOS script and create ProblemSpecificationSchema object.
+    
+    Converts a STOS problem specification script into a structured
+    ProblemSpecificationSchema object containing test specifications
+    with time limits, memory limits, and test names.
+    
+    Args:
+        script (str): The STOS problem specification script to parse.
+        problem_id (str): The unique identifier for the problem.
+    
+    Returns:
+        Optional[ProblemSpecificationSchema]: Parsed problem specification
+            or None if parsing fails or script is empty.
+    """
     if script.strip() == "":
         return None
 

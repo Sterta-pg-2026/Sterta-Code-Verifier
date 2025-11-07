@@ -1,7 +1,34 @@
+"""Logger module for STOS worker logging functionality.
+
+This module provides logging utilities for the STOS worker system,
+including file and console logging with proper formatting and
+path validation for log files.
+
+The logger supports both file and standard output logging with
+configurable formatting and automatic handler management.
+"""
 import logging
 from common.utils import is_valid_destination_file_path
 
 def get_logger(func_name: str, log_file_path: str, std_enabled: bool) -> logging.Logger:
+    """Create and configure a logger with file and optional console output.
+    
+    Creates a logger instance with proper formatting, file handler for logging
+    to a specified file, and optionally a console handler for standard output.
+    Validates the log file path and clears any existing handlers to prevent
+    duplicate logging.
+    
+    Args:
+        func_name (str): Name identifier for the logger instance.
+        log_file_path (str): Path to the log file for file handler.
+        std_enabled (bool): Whether to enable console/stdout logging.
+    
+    Returns:
+        logging.Logger: Configured logger instance with file and optional console handlers.
+    
+    Raises:
+        ValueError: If the log file path is invalid.
+    """
 
 
     if not is_valid_destination_file_path(log_file_path):
@@ -28,5 +55,17 @@ def get_logger(func_name: str, log_file_path: str, std_enabled: bool) -> logging
     return logger
 
 def flush_logger(logger: logging.Logger) -> None:
+    """Flush all handlers of the specified logger.
+    
+    Forces all log handlers associated with the logger to flush their
+    buffers, ensuring that all pending log messages are written to
+    their respective outputs (file or console).
+    
+    Args:
+        logger (logging.Logger): The logger instance whose handlers should be flushed.
+    
+    Returns:
+        None
+    """
     for handler in logger.handlers:
         handler.flush()

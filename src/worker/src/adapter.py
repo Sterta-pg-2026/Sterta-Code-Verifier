@@ -1,3 +1,12 @@
+"""Adapter module for STOS worker API integration.
+
+This module provides adapter functionality for the STOS worker system,
+handling communication with the STOS GUI API for fetching submissions,
+problems, and reporting results.
+
+The adapter manages file operations, workspace initialization,
+and data transformation between API responses and internal schemas.
+"""
 import os
 import json
 import shutil
@@ -17,6 +26,22 @@ QUEUE_COMPILER_DICT: Dict[str, str] = json.loads(os.environ["QUEUE_COMPILER_DICT
 
 
 def fetch_submission(destination_directory: str) -> Optional[SubmissionSchema]:
+    """Fetch a submission from the STOS GUI API.
+    
+    Retrieves a submission from the STOS GUI API by polling available queues.
+    Downloads the submission as a ZIP file, extracts it to the destination
+    directory, and creates a SubmissionSchema object with submission metadata.
+    
+    Args:
+        destination_directory (str): Path to the directory where submission files will be extracted.
+    
+    Returns:
+        Optional[SubmissionSchema]: Submission object with metadata and extracted files,
+            or None if no submission is available.
+    
+    Raises:
+        ValueError: If the destination directory path is invalid.
+    """
     submission_workspace = f'/tmp/submission'
     submission_temp_zip_path = os.path.join(submission_workspace, "src.zip")
 
@@ -64,6 +89,18 @@ def fetch_submission(destination_directory: str) -> Optional[SubmissionSchema]:
 
 
 def report_result(submission_id: str, result: SubmissionResultSchema) -> None:
+    """Report submission evaluation result to the STOS GUI API.
+    
+    Formats the submission result using the result formatter and sends
+    it to the STOS GUI API for storage and display to users.
+    
+    Args:
+        submission_id (str): Unique identifier of the submission.
+        result (SubmissionResultSchema): Evaluation result containing test results and metadata.
+    
+    Returns:
+        None
+    """
     guiResult = StosGuiResultSchema(
         result=result_formatter.get_result_formatted(result),
         info=result_formatter.get_info_formatted(result),
@@ -80,6 +117,21 @@ def change_status(submission_id: str, new_status: str) -> None:
 
 
 def fetch_problem(problem_id: str, destination_directory: str, lib_destination_directory: Optional[str]=None) -> ProblemSpecificationSchema:
+    """Fetch problem specification and files from the STOS GUI API.
+    
+    Downloads problem files including test inputs, expected outputs, and
+    script specifications from the STOS GUI API. Parses the script file
+    to extract test configurations and creates a ProblemSpecificationSchema.
+    
+    Args:
+        problem_id (str): Unique identifier of the problem.
+        destination_directory (str): Path to directory for test input/output files.
+        lib_destination_directory (Optional[str]): Path to directory for library files.
+    
+    Returns:
+        ProblemSpecificationSchema: Problem specification with test configurations
+            and metadata.
+    """
     # initializing workspace
     problem_workspace = f'/tmp/problem'
     tmp_script_path = os.path.join(problem_workspace, "script.txt")

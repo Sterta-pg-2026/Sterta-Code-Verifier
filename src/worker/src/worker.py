@@ -1,3 +1,12 @@
+"""Worker module for STOS distributed task evaluation system.
+
+This module contains the main worker functionality that processes submissions
+through a complete evaluation pipeline including compilation, execution,
+and judging phases using Docker containers.
+
+The worker continuously polls for new submissions, processes them through
+the evaluation workflow, and reports results back to the STOS GUI API.
+"""
 import os
 import json
 import time
@@ -31,10 +40,27 @@ JUDGE_IMAGE: str = os.environ["JUDGE_IMAGE_NAME"]
 
 
 def handle_signal(signum: int, frame: Optional[FrameType]) -> None:
+    """Handle interrupt and termination signals.
+    
+    Args:
+        signum (int): Signal number.
+        frame (Optional[FrameType]): Call frame.
+    
+    Returns:
+        None
+    """
     exit(0)
 
 
 def mainloop() -> None:
+    """Main loop that continuously processes submissions.
+    
+    Sets up signal handlers and runs the submission processing workflow
+    in an infinite loop with configurable polling interval.
+    
+    Returns:
+        None
+    """
     signal.signal(signal.SIGINT, handle_signal)
     signal.signal(signal.SIGTERM, handle_signal)
     while True:
@@ -48,6 +74,14 @@ def mainloop() -> None:
 
 
 def fetch_debug_logs(log_path: Optional[str]) -> Optional[str]:
+    """Fetch debug logs from the specified path.
+    
+    Args:
+        log_path (Optional[str]): Path to the log file.
+    
+    Returns:
+        Optional[str]: Log content or None if file doesn't exist or error occurred.
+    """
     maximum_content_length = 2*5000
     try:
         if log_path and os.path.exists(log_path):
@@ -64,6 +98,14 @@ def fetch_debug_logs(log_path: Optional[str]) -> Optional[str]:
 
 
 def get_results(path: str) -> SubmissionResultSchema:
+    """Get submission evaluation results from the specified path.
+    
+    Args:
+        path (str): Path to the directory containing test results and compilation file.
+    
+    Returns:
+        SubmissionResultSchema: Object containing test results, compilation info and points.
+    """
     def fetch_compilation_info(path: str) -> Optional[str]:
         maximum_content_length = 2*5000
         comp_file_path = os.path.join(path, "comp.txt")
@@ -124,6 +166,14 @@ def get_results(path: str) -> SubmissionResultSchema:
 
 
 def init_worker_files() -> None:
+    """Initialize worker directory structure.
+    
+    Creates necessary directories for worker operations including
+    bin, std, out, conf, src, lib, logs, and tests directories.
+    
+    Returns:
+        None
+    """
     os.umask(0)
     if os.path.exists(DATA_LOCAL_PATH):
         shutil.rmtree(DATA_LOCAL_PATH)
@@ -139,6 +189,14 @@ def init_worker_files() -> None:
 
 
 def archive_worker_files() -> None:
+    """Archive worker files to debug directory.
+    
+    Creates a backup copy of all worker files in a debug directory
+    for troubleshooting and analysis purposes.
+    
+    Returns:
+        None
+    """
     os.umask(0)
     history_local_path = f"{DATA_LOCAL_PATH}_debug"
     if os.path.exists(history_local_path):
@@ -153,6 +211,16 @@ def save_problem_specification(
     destination_directory: str, 
     name: str="problem_specification.json"
 ) -> None:
+    """Save problem specification to JSON file.
+    
+    Args:
+        problem_specification (Optional[ProblemSpecificationSchema]): Problem specification to save.
+        destination_directory (str): Destination directory.
+        name (str): File name (default: "problem_specification.json").
+    
+    Returns:
+        None
+    """
     if problem_specification:
         problem_specification_local_path = os.path.join(destination_directory, name)
         with open(problem_specification_local_path, "w") as f:
@@ -167,6 +235,19 @@ def run_container(
     environment: Dict[str, str] = {},
     volume_mappings: List[VolumeMappingSchema] = [],
 ) -> None:
+    """Run Docker container with specified parameters.
+    
+    Args:
+        client (docker.DockerClient): Docker client for running containers.
+        image (str): Docker image name to run.
+        memory_limit (str): Memory limit for the container.
+        timeout (int): Timeout limit for container execution.
+        environment (Dict[str, str]): Environment variables to pass to container.
+        volume_mappings (List[VolumeMappingSchema]): Volume mappings for the container.
+    
+    Returns:
+        None
+    """
     container = client.containers.run( # type: ignore
         image=image,
         name=f"{NAME}-{image.replace('/', '-').replace(':', '-')}-{int(time.time())}",
@@ -188,6 +269,16 @@ def run_container(
 
 
 def process_submission_workflow() -> bool:
+    """Process a single submission through the complete evaluation workflow.
+    
+    This function handles the entire submission processing pipeline including:
+    - Fetching submission and problem data
+    - Running compilation, execution, and judging containers
+    - Collecting results and reporting back to the API
+    
+    Returns:
+        bool: True if worker should wait before next attempt, False otherwise.
+    """
     submission_local_path: str = os.path.join(DATA_LOCAL_PATH, "src")
     problem_local_path: str = os.path.join(DATA_LOCAL_PATH, "tests")
     lib_local_path: str = os.path.join(DATA_LOCAL_PATH, "lib")
