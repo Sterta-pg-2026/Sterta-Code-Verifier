@@ -322,7 +322,7 @@ def process_submission_workflow() -> bool:
         return True
 
     logger = get_logger(
-        "worker_submission_proccessing_workflow",
+        "worker_submission_processing_workflow",
         os.path.join(logs_local_path, "worker.log"),
         True,
     )
@@ -522,7 +522,7 @@ def process_submission_workflow() -> bool:
     logger.info(f"Containers finished for submission {submission.id}")
     logger.info(f"Result for submission {submission.id}: \n\n{result}\n")
     logger.info(
-        f"{Ansi.BOLD.value}{NAME}{Ansi.RESET.value} has finished proccessing submission {submission.id}."
+        f"{Ansi.BOLD.value}{NAME}{Ansi.RESET.value} has finished processing submission {submission.id}."
     )
     try:
         result.debug = fetch_debug_logs(os.path.join(logs_local_path, "worker.log"))
