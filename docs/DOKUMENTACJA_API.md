@@ -804,7 +804,7 @@ def flush_logger(logger: logging.Logger) -> None:
 
    - Uruchomienie obrazu kompilatora
    - Montowanie plików źródłowych
-   - Generowanie binarek
+   - Generowanie plików wykonywalnych
 
 4. **Wykonanie testów** (Docker container)
 
