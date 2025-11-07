@@ -808,7 +808,7 @@ def flush_logger(logger: logging.Logger) -> None:
 
 4. **Wykonanie testów** (Docker container)
 
-   - Uruchomienie binarek dla każdego testu
+   - Uruchomienie plików binarnych dla każdego testu
    - Pomiar czasu i pamięci
    - Zapis wyjścia
 
