@@ -25,12 +25,12 @@ services:
       mode: replicated
       replicas: 4
 
-  gui_mock:
-    image: gui_mock
-    build:
-      dockerfile: gui_mock/dockerfile
-    ports:
-      - "8080:80"
+  # gui_mock:
+  #   image: gui_mock
+  #   build:
+  #     dockerfile: gui_mock/dockerfile
+  #   ports:
+  #     - "8080:80"
 
 
 

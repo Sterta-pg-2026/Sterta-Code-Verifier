@@ -72,6 +72,12 @@ def report_result(submission_id: str, result: SubmissionResultSchema) -> None:
     gui_client.post_result(submission_id, guiResult, GUI_URL, TIMEOUT)
 
 
+def change_status(submission_id: str, new_status: str) -> None:
+    try:
+        gui_client.notify(submission_id, new_status, GUI_URL, TIMEOUT)
+    except Exception as e:
+        print(f"An error occurred while changing status to {new_status} for submission {submission_id}: {e}")
+
 
 def fetch_problem(problem_id: str, destination_directory: str, lib_destination_directory: Optional[str]=None) -> ProblemSpecificationSchema:
     # initializing workspace

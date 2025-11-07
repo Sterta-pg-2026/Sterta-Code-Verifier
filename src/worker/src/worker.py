@@ -153,7 +153,7 @@ def save_problem_specification(
     destination_directory: str, 
     name: str="problem_specification.json"
 ) -> None:
-     if problem_specification:
+    if problem_specification:
         problem_specification_local_path = os.path.join(destination_directory, name)
         with open(problem_specification_local_path, "w") as f:
             json.dump(problem_specification.model_dump(), f)
@@ -217,7 +217,6 @@ def process_submission_workflow() -> bool:
     logger = get_logger("worker_submission_proccessing_workflow", os.path.join(logs_local_path, "worker.log"), True)
 
 
-
     # * ----------------------------------
     # * 2. Fetch submission
     # * ----------------------------------
@@ -235,12 +234,15 @@ def process_submission_workflow() -> bool:
     logger.info(f"{Ansi.BOLD.value}{NAME}{Ansi.RESET.value} is starting submission processing workflow.")
     logger.info(f"Worker files initialized successfully.")
     logger.info(f"Fetched submission {submission.id} for problem {submission.problem_specification.id} by {submission.submitted_by}")
+    adapter.change_status(submission.id, "Processing submission...")
+
 
 
 
     # * ----------------------------------
     # * 3. Fetch problem
     # * ----------------------------------
+    adapter.change_status(submission.id, "Fetching problem...")
     try:
         problem = adapter.fetch_problem(submission.problem_specification.id, problem_local_path, lib_local_path)
         submission.problem_specification = problem
@@ -254,6 +256,7 @@ def process_submission_workflow() -> bool:
     # * ----------------------------------
     # * 4. Save problem specification
     # * ----------------------------------
+    adapter.change_status(submission.id, "Saving problem specification...")
     try:
         save_problem_specification(submission.problem_specification, conf_local_path)
         logger.info(f"Problem specification (script.txt) parsed and saved successfully: \n\n{submission.problem_specification}\n")
@@ -266,6 +269,7 @@ def process_submission_workflow() -> bool:
     # * ----------------------------------
     # * 5. Prepare subcontainer parameters
     # * ----------------------------------
+    adapter.change_status(submission.id, "Preparing compiler container...")
     logger.info(f"Running containers for submission {submission.id} with image {submission.comp_image} and mainfile {submission.mainfile}")
 
 
@@ -273,6 +277,7 @@ def process_submission_workflow() -> bool:
     # * ----------------------------------
     # * 6. Run compiler subcontainer
     # * ----------------------------------
+    adapter.change_status(submission.id, "Compiling...")
     logger.info(f"Running compiler container for submission {submission.id}")
     try: 
         client = docker.from_env()
@@ -302,6 +307,7 @@ def process_submission_workflow() -> bool:
     # * ----------------------------------
     # * 7. Run execution subcontainer
     # * ----------------------------------
+    adapter.change_status(submission.id, "Executing...")
     logger.info(f"Running execution container for submission {submission.id}")
     try:
         client = docker.from_env()
@@ -333,6 +339,7 @@ def process_submission_workflow() -> bool:
     # * ----------------------------------
     # * 8. Run judge subcontainer
     # * ----------------------------------
+    adapter.change_status(submission.id, "Judging...")
     logger.info(f"Running judge container for submission {submission.id}")
     try:
         client = docker.from_env()
@@ -362,6 +369,7 @@ def process_submission_workflow() -> bool:
     # * ----------------------------------
     # * 9. Fetch results
     # * ----------------------------------
+    adapter.change_status(submission.id, "Fetching results...")
     logger.info(f"Fetching results for submission {submission.id}")
     try:
         result: SubmissionResultSchema = get_results(os.path.join(DATA_LOCAL_PATH, "out"))
@@ -383,6 +391,7 @@ def process_submission_workflow() -> bool:
     # * ----------------------------------
     # * 10. Report result
     # * ----------------------------------
+    adapter.change_status(submission.id, "Reporting result...")
     try:
         adapter.report_result(submission.id, result)
     except Exception as e:
