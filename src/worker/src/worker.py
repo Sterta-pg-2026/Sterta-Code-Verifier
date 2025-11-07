@@ -174,7 +174,7 @@ def get_results(path: str) -> SubmissionResultSchema:
     try:
         result.info = fetch_compilation_info(path)
     except Exception:
-        result.info = "Error while running submission."
+        result.info = "error while running submission"
         print("Error while fetching compilation info.")
 
     return result
@@ -265,7 +265,7 @@ def run_container(
     """
     container = client.containers.run(  # type: ignore
         image=image,
-        name=f"{NAME}-{image.replace('/', '-').replace(':', '-')}-{int(time.time())}",
+        name=f"{NAME}-{image.replace('/', '-').replace(':', '-')}-{int(time.time())}"[:50],
         detach=True,
         remove=True,
         mem_limit=memory_limit,

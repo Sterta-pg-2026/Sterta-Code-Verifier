@@ -133,6 +133,7 @@ def get_info_formatted(result: SubmissionResultSchema) -> str:
 </div>
     """
     if result.info:
+        # todo: handle html escaping properly --- IGNORE ---
         converter = ansi2html.Ansi2HTMLConverter(inline=True)
         info_parsed = converter.convert(result.info, full=False)
         info_content += f"""<pre style='font-family: monospace;'>{info_parsed}</pre>"""
