@@ -16,7 +16,7 @@ services:
       
       - GUI_URL=${GUI_URL}
       - QUEUE_COMPILER_DICT=${QUEUE_COMPILER_DICT}
-
+      - STOS_GID=${STOS_GID}
       - IS_DEBUG_MODE_ENABLED=${IS_DEBUG_MODE_ENABLED}
     group_add:  
       - ${DOCKER_GID}

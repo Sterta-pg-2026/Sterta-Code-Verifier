@@ -1,51 +1,61 @@
-# Instrukcja wdrożenia systemu STOS
+## Instrukcja manualnej instalacji
 
-## 1. Przygotowanie obecnego systemu GUI
+### Wymagania:
 
-### Tworzenie nowych kolejek zgłoszeń
-Opracowywany system zakłada użycie osobnych kolejek w celu zachowania kompatybilnosci wstecznej. W celu dodania nowych kolejek, w pliku `config.inc` należy dodać nowe wpisy osobno dla każdego języka do zmiennej `$availableQueues` (linia 31):
-
-```php
-array("stos2025", false, $cppNamePatterns),
-array("stos2025-python", true, $pyNamePatterns)
-```
-- Pierwszy argument: nazwa kolejki.
-- Drugi argument: czy wymagany jest wybór pliku głównego przy uruchomieniu.
-- Trzeci argument: tablica wzorców plików do wysłania na serwer.
-
-Przykład wzorców plików dla C/C++:
-```php
-array("*.c", "*.cpp", "*.cxx", "*.h", "*.hpp", "*.hxx");
-```
-### Dodanie tłumaczenia nazw kolejek
-Domyślnie nowe kolejki są wyświetlane przez GUI jako "qname_" + nazwa kolejki.
-Aby ustawić czytelne nazwy kolejek, należy w pliku `dict.inc` dodać do słownika `$dictData` (linia 20) odpowiednie tłumaczenia:
-```php
-"qname_stos2025" => array("pl" => "Stos 2025", "en" => "Stos 2025")
-```
+- docker (zalecana wersja: 27.3.1)
+- system operacyjny: Linux (najlepiej amd64)
 
 
-### Rozszerzenie listy dozwolonych adresów
-Kolejnym krokiem, niezbędnym do poprawnego działania systemu, jest dodanie adresu do listy dozwolonych (whitelisty).
-W tym celu, w pliku `configlocal.inc` należy dopisać do zmiennej `$globalACL` (linia 23) wpis z adresem hosta.
+## Konfiguracja
 
+Konfiguracja odbywa się przez plik `src/.env`.
+Przykładowa konfiguracja systemu Stos2025:
 
-### Naprawa błędu związanego z wyborem głównego pliku (funkcjonalność wymagana np. dla pythona)
-Ocenianie zadań w językach takich jak Python wymaga wskazania głównego pliku. Obecna wersja GUI zawiera taką funkcjonalność, jednak jej implementacja zawiera błąd.
+```bash
+COMPOSE_PROJECT_NAME=stos2025    # nazwa projektu używana przez docker-compose
+STOS_FILES=/home/stos/Projekt_Inzynierski-2025/stos_files    # katalog roboczy (stos_files)
 
-W celu ich naprawy, w pliku `problem/put_pre.inc` w linii 319 należy usuńąć wywołanie funkcji `intval()`, ponieważ oczekiwany typ zmiennej `$mainfile` to string:
+GUI_URL=http://172.20.3.170    # adres interfejsu GUI
 
-**Przed:**
-```php
-if(isset($pliki[""]) && isset($pliki[""]["mainfile"])) $mainfile = intval($pliki[""]["mainfile"]);
-```
-**Po:**
-```php
-if(isset($pliki[""]) && isset($pliki[""]["mainfile"])) $mainfile = $pliki[""]["mainfile"];
+DOCKER_SOCK=/var/run/docker.sock    # ścieżka gniazda Dockera
+DOCKER_GID=994    # ID grupy docker - uprawnienia do socketu (getent group docker | cut -d: -f3)
+STOS_GID=993    # ID grupy stos2025 - uprawnienia do katalogu roboczego
+
+# obrazy Docker
+EXEC_IMAGE_NAME=d4m14n/stos:exec-1.0.0    # obraz do uruchamiania zadań
+JUDGE_IMAGE_NAME=d4m14n/stos:judge-1.0.0    # obraz do oceniania 
+QUEUE_COMPILER_DICT={"stos2025": "d4m14n/stos:gpp_comp-1.0.0", "stos2025-python": "d4m14n/stos:python3_comp-1.0.0"}    # mapowanie kolejek -> obrazy kompilatorów
+
+IS_DEBUG_MODE_ENABLED=true
 ```
 
-Dodatkowo, należy ustawić wartość `$pliki[""]["mainfile"]` np. w linii 525:
+## Stworzenie grupy systemowej i katalogu roboczego
 
-```php
-$pliki[""]["mainfile"] = $mainfile;
+Poniżej przykładowe polecenia do utworzenia grupy systemowej `stos2025`, katalogu roboczego oraz nadania niezbędnych uprawnień. 
+
+```bash
+# (1) utwórz grupę 'stos2025' - jeśli grupa już istnieje, polecenie nic nie zrobi, np.
+sudo groupadd -f stos2025
+
+# (2) utwórz katalog roboczy projektu, np.
+sudo mkdir -p /home/stos/Projekt_Inzynierski-2025/stos_files
+
+# (3) przypisz grupę 'stos2025' do katalogu i ustaw prawa (2 = setgid, zapewnia dziedziczenie grupy dla nowych plików), np.
+sudo chown -R :stos2025 /home/stos/Projekt_Inzynierski-2025/stos_files
+sudo chmod -R 2775 /home/stos/Projekt_Inzynierski-2025/stos_files
+
+# (4) sprawdź ID grupy 'stos2025' 
+getent group stos2025 | cut -d: -f3    # wyświetli GID grupy 'stos2025'
+```
+
+## Budowa obrazów
+
+```bash
+docker compose -f ./src/compose.yml up --build  
+```
+
+lub 
+
+```bash
+docker compose -f ./src/compose.yml build
 ```

@@ -1,6 +1,6 @@
-# Dokumentacja API Systemu STOS
+# Dokumentacja Systemu STOS
 
-> **System do Testowania Online Studentów - Dokumentacja Techniczna API**
+> **System do Testowania Online Studentów - Dokumentacja Techniczna**
 
 ---
 

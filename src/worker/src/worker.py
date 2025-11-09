@@ -37,6 +37,7 @@ CONTAINERS_TIMEOUT = 250  # seconds
 CONTAINERS_FILE_SIZE_LIMIT = "5g"
 CONTAINERS_MEMORY_LIMIT = "512m"
 HOSTNAME = os.environ["HOSTNAME"]
+STOS_GID = os.environ.get("STOS_GID") or None
 NAME: str = docker.from_env().containers.get(HOSTNAME).name or HOSTNAME
 DATA_LOCAL_PATH = os.path.join(os.environ["WORKERS_DATA_LOCAL_PATH"], NAME)
 DATA_HOST_PATH = os.path.join(os.environ["WORKERS_DATA_HOST_PATH"], NAME)
@@ -276,6 +277,7 @@ def run_container(
         ],
         network_disabled=True,
         security_opt=["no-new-privileges"],
+        group_add=[STOS_GID] if STOS_GID else None,
         # storage_opt={"size": CONTAINERS_FILE_SIZE_LIMIT},
         environment=environment,
         volumes={
