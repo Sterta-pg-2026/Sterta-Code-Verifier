@@ -1,4 +1,4 @@
-# Projekt_Inżynierski-2025
+# Fork Projektu_Inżynierskiego-2025
 
 > [!IMPORTANT]
 > Work is still in progress. Things can change.
