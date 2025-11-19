@@ -1,0 +1,16 @@
+1) change lines in env to something like this:
+  QUEUE_COMPILER_DICT={"stos2025": "local/stos:gpp_comp-1.0.1", "stos2025-python": "local/stos:python3_comp-1.0.1"}
+  EXEC_IMAGE_NAME=local/stos:exec-1.0.1
+  JUDGE_IMAGE_NAME=local/stos:judge-1.0.1
+
+2) build containers from src folder:
+  docker build -f compilers/cpp/Dockerfile  --no-cache -t local/stos:gpp_comp-1.0.1 .
+  docker build -f compilers/cpp/Dockerfile  --no-cache -t local/stos:python3_comp-1.0.1 .
+  docker build -f judge/Dockerfile  --no-cache -t local/stos:judge-1.0.1 .
+  docker build -f exec/Dockerfile  --no-cache -t local/stos:exec-1.0.1 .
+
+3) run everything:
+  docker compose up --build
+
+4) mockgui at http://localhost:8080/results by default
+

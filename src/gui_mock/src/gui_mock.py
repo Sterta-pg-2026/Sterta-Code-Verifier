@@ -6,7 +6,7 @@ import os
 
 
 # SKIP = 192
-SKIP = 300
+SKIP = 280
 LIMIT = 100
 SET = 1
 SUBMISSIONS = f"test_files/submissions-{SET}"
@@ -16,12 +16,14 @@ RESULT_DIR = "received_results"
 
 os.makedirs(RESULT_DIR, exist_ok=True)
 templates = Jinja2Templates(directory="templates")
-submissions: List[str] = [fname for fname in os.listdir(SUBMISSIONS) if os.path.isfile(os.path.join(SUBMISSIONS, fname))]
-submissions.sort() 
+submissions: List[str] = [
+    fname
+    for fname in os.listdir(SUBMISSIONS)
+    if os.path.isfile(os.path.join(SUBMISSIONS, fname))
+]
+submissions.sort()
 queue: List[Tuple[str, str]] = [(fname, str(i)) for i, fname in enumerate(submissions)]
-queue = queue[SKIP:SKIP+LIMIT]
-
-
+queue = queue[SKIP : SKIP + LIMIT]
 
 
 app = FastAPI()
@@ -36,7 +38,11 @@ app = FastAPI()
 async def results_page(request: Request):
     files = []
     if os.path.isdir(RESULT_DIR):
-        files = sorted(f for f in os.listdir(RESULT_DIR) if os.path.isfile(os.path.join(RESULT_DIR, f)))
+        files = sorted(
+            f
+            for f in os.listdir(RESULT_DIR)
+            if os.path.isfile(os.path.join(RESULT_DIR, f))
+        )
     grouped: dict[str, list[str]] = {}
     for f in files:
         if "_" in f:
@@ -64,12 +70,15 @@ async def results_file(fname: str):
         text = data.decode("utf-8")
         return PlainTextResponse(text)
     except UnicodeDecodeError:
-        return PlainTextResponse(data[:1024].hex() + (" ... (truncated)" if len(data) > 1024 else ""))
+        return PlainTextResponse(
+            data[:1024].hex() + (" ... (truncated)" if len(data) > 1024 else "")
+        )
 
 
 # ------------------------------------------------------------------------------
 # Endpoint for reporting results
 # ------------------------------------------------------------------------------
+
 
 @app.post("/io-result.php")
 async def io_result_proxy(
@@ -87,12 +96,13 @@ async def io_result_proxy(
     await _store(info)
     await _store(debug)
 
-    return JSONResponse({ "status": "ok" }, status_code=200)
+    return JSONResponse({"status": "ok"}, status_code=200)
 
 
 # ------------------------------------------------------------------------------
 # Endpoint for files list and get
 # ------------------------------------------------------------------------------
+
 
 @app.get("/fsapi/fsctrl.php")
 async def fsctrl_proxy(
@@ -101,7 +111,7 @@ async def fsctrl_proxy(
 ):
     if f == "list":
         test_files = [
-            fname+":1:1"
+            fname + ":1:1"
             for fname in os.listdir(TESTS)
             if os.path.isfile(os.path.join(TESTS, fname))
         ]
@@ -123,6 +133,7 @@ async def fsctrl_proxy(
 # Endpoint for popping submissions from the queue
 # ------------------------------------------------------------------------------
 
+
 @app.get("/qapi/qctrl.php")
 async def qctrl_proxy(
     f: str = Query(...),
@@ -131,7 +142,7 @@ async def qctrl_proxy(
     if f == "get":
         if len(queue) == 0 or name != QUEUE:
             return JSONResponse({"error": "queue is empty"}, status_code=404)
-        
+
         name, i = queue.pop(0)
         problem_id = 0
         student_id = 0

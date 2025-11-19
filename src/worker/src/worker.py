@@ -266,7 +266,9 @@ def run_container(
     """
     container = client.containers.run(  # type: ignore
         image=image,
-        name=f"{NAME}-{image.replace('/', '-').replace(':', '-')}-{int(time.time())}"[:50],
+        name=f"{NAME}-{image.replace('/', '-').replace(':', '-')}-{int(time.time())}"[
+            :50
+        ],
         detach=True,
         remove=True,
         mem_limit=memory_limit,

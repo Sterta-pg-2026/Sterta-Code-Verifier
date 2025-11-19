@@ -1,10 +1,9 @@
-FROM alpine:3.20
+FROM alpine:3.21
 
 WORKDIR /app
 
-ARG LOGS=on
 
-RUN apk add --no-cache python3
+RUN apk add --no-cache python3 py3-pydantic
 RUN addgroup -S execgroup
 RUN adduser -S execuser -G execgroup
 
@@ -13,12 +12,14 @@ USER execuser
 RUN mkdir /tmp/in
 RUN mkdir /tmp/out
 
-COPY judge.py .
-COPY main.py .
+# coping files
+COPY judge/src/* .
+COPY common/*.py ./common/
 
-ENV LOGS=$LOGS
+ENV LOGS=on
 ENV IN=/data/in
 ENV ANS=/data/answer
 ENV OUT=/data/out
+ENV CONF=/data/conf
 
 ENTRYPOINT ["python3", "-u", "main.py"]

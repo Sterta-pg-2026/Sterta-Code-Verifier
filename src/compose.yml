@@ -25,12 +25,12 @@ services:
       mode: replicated
       replicas: 4
 
-  # gui_mock:
-  #   image: gui_mock
-  #   build:
-  #     dockerfile: gui_mock/dockerfile
-  #   ports:
-  #     - "8080:80"
+  gui_mock:
+    image: gui_mock
+    build:
+      dockerfile: gui_mock/dockerfile
+    ports:
+      - "8080:80"
 
 
 
@@ -57,19 +57,19 @@ services:
   #   restart: unless-stopped
 
 
-  # # --- cADVISOR (monitoring kontenerów) ---
-  # cadvisor:
-  #   image: gcr.io/cadvisor/cadvisor:latest
-  #   container_name: cadvisor
-  #   privileged: true
-  #   volumes:
-  #     - /:/rootfs:ro
-  #     - /var/run:/var/run:ro
-  #     - /sys:/sys:ro
-  #     - /var/lib/docker/:/var/lib/docker:ro
-  #   ports:
-  #     - "8080:8080"
-  #   restart: unless-stopped
+  # --- cADVISOR (monitoring kontenerów) ---
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    ports:
+      - "8081:8080"
+    restart: unless-stopped
 
 
   # # --- GRAFANA ---

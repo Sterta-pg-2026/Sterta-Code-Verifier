@@ -1,0 +1,26 @@
+FROM alpine:3.21
+
+RUN apk add --no-cache build-base musl-dev libffi-dev python3 py3-pip
+RUN pip install --break-system-packages pyinstaller 
+
+RUN addgroup -S stos
+RUN adduser -S stos -G stos
+USER stos
+
+WORKDIR /app
+# coping files
+COPY compilers/python/src/* .
+COPY common/*.py ./common/
+
+RUN mkdir /tmp/src
+RUN mkdir /tmp/out
+RUN mkdir /tmp/bin
+
+ENV SRC=/data/in
+ENV OUT=/data/out
+ENV BIN=/data/bin
+ENV MAINFILE=main.py
+
+ENTRYPOINT ["./main.py"]
+
+
